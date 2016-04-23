@@ -1,0 +1,290 @@
+\documentclass{beamer}
+
+\mode<presentation>
+{
+  \usetheme{Warsaw}
+  %\usecolortheme{seahorse}
+  % or ...
+
+  \setbeamercovered{transparent}
+  % or whatever (possibly just delete it)
+}
+
+
+\usepackage[english]{babel}
+% or whatever
+
+\usepackage[latin1]{inputenc}
+% or whatever
+
+\usepackage{amssymb}
+\usepackage{times}
+%\usepackage[T1]{fontenc}
+% Or whatever. Note that the encoding and the font should match. If T1
+% does not look nice, try deleting the line with the fontenc.
+
+
+\title{A Cross-Platform Scalable I/O Manager for GHC}
+
+\author{Mikhail~Glushenkov}
+
+\date{\today}
+
+\subject{A Cross-Platform Scalable I/O Manager for GHC}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Summary}
+  \emph{Main idea:} Make it possible to program network server applications in
+  Haskell that work on Windows and support a large number of concurrent
+  connections.
+\end{frame}
+
+\begin{frame}{Outline}
+  \tableofcontents
+  % You might wish to add the option [pausesections]
+\end{frame}
+
+\section {Background}
+
+% Bakgrund
+% –
+% Kontext (Avvikelser, olöst, dåliga algoritmer, ny approach...
+%  )
+% –
+% Vad behöver jag läsa in mig på?
+% –
+% Vilken litteratur ska läsas?
+
+\begin{frame}{Haskell}
+  \begin{itemize}
+  \item A popular functional language.
+  \item Powerful static type system.
+  \item Focus on immutability.
+  \item Lazy (call-by-need).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{GHC}
+  \begin{itemize}
+  \item The Glasgow Haskell Compiler.
+  \item An industrial-strength implementation of Haskell.
+  \item (``Haskell'' == ``GHC Haskell'' for practical purposes).
+  \item A lot of extensions.
+  \item Compiles to fast native code.
+  \item \emph{Open source}.
+  \item \emph{Great support for concurrency}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Concurrent Haskell}
+  \begin{itemize}
+  \item ``Green threads''.
+  \item Multiplexed on a small number of OS threads.
+  \item Lightweight: low memory/task switching cost.
+  \item Easy to create a large number of threads.
+  \item ``Large'' as in 100K-1M.
+  \item Easier to program than event-based style (e.g. NodeJS).
+  \item Supports multicore.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Code Example}
+\begin{verbatim}
+    main = do
+        listenSock <- startListenSock
+        forever $ do
+            sock <- accept listenSock
+            forkIO $ worker sock
+
+    worker sock = do
+       -- Do some I/O ...
+       send sock "question"
+       answer <- recv sock
+\end{verbatim}
+\end{frame}
+
+\begin{frame}{The Problem of I/O}
+  \begin{itemize}
+  \item I/O calls should only block Haskell threads.
+  \item I/O should also scale well.
+  \item High-performance I/O APIs use event-based style.
+  \item Example: \texttt{epoll}, \texttt{kqueue}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Solution: I/O Manager}
+  \begin{itemize}
+  \item Part of the runtime support system.
+  \item A dedicated OS thread for handling I/O.
+  \item Uses an event-based I/O API.
+  \item Presents a synchronous API to the programmer.
+  \item (Blocking \texttt{send}/\texttt{recv} calls).
+  \item With recent improvements, scales to 40 cores (at least).
+  \end{itemize}
+\end{frame}
+
+
+\section {Problem Description}
+
+% ●
+% Problembeskrivning (lägg fokus här)
+% –
+% Vad ska besvaras?
+
+\begin{frame}{Problem: Windows support}
+  \begin{itemize}
+  \item GHC on Windows doesn't have an I/O manager.
+  \item Socket I/O use safe FFI calls.
+  \item ``Safe FFI'': does not block other Haskell threads.
+  \item Problem: not as scalable as an event-based I/O API.
+  \item Problem: not interruptible.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Code Example}
+\begin{verbatim}
+  timeout 5000000 $ connectTo "google.com"
+                    (PortNumber 1234)
+\end{verbatim}
+  \begin{itemize}
+  \item On Linux: exception.
+  \item On Windows: hangs forever.
+  \end{itemize}
+\end{frame}
+
+\section {Proposed Solution}
+
+% ●
+% Metoder
+% –
+% Hur ska problemet lösas?
+
+\begin{frame}{Proposed Solution}
+  \begin{itemize}
+  \item Implement an I/O manager for Windows.
+  \item Use Windows native event-based I/O API.
+  \item Redesign GHC's internal APIs to support the Windows model.
+  \item Integrate with the RTS scheduler to make it fast.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Prior Art}
+  \begin{itemize}
+  \item There is already a unfinished implementation of an I/O manager for
+    Windows.
+  \item See discussion in \emph{GHC Trac issue \#7353}
+    \url{https://ghc.haskell.org/trac/ghc/ticket/7353}.
+  \item My work will build on that.
+  \item Aim: patchset suitable for inclusion in GHC.
+  \item Or at least a proof of concept.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Challenges}
+  \begin{itemize}
+  \item Different API on Windows.
+  \item Different limitations.
+  \item There was already one (partially) failed attempt.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{IOCP vs. epoll-based}
+  \begin{itemize}
+  \item IOCP: start all I/O operations asynchronously and wait for their
+    completion.
+  \item epoll: wait until one of the files is ``ready'' and the do the I/O
+    operation.
+  \end{itemize}
+\end{frame}
+
+\section {Time Plan}
+
+% ●
+% Tidsplan (var finns riskerna?)
+% –
+% Hur lång tid förväntas varje moment ta
+
+
+\begin{frame}{Time Plan (Preliminary)}
+  \begin{itemize}
+  \item Phase 1: Make it work.
+  \item Phase 2: Make it fast.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Time Plan (Preliminary)}
+  First milestone: make it work
+  \begin{itemize}
+    \item Deadline: first seminar
+    \item Week 1: Study the existing implementation, describe it in the report.
+    \item Week 2-3: Port old code to a new GHC, benchmark \& test.
+    \item Meaning of ``make it work'': interruptible socket I/O.
+    \item Not necessarily fast.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Time Plan (Preliminary)}
+  Second milestone: make it fast
+  \begin{itemize}
+    \item Deadline: second seminar.
+    \item Week 4-7.
+    \item Meaning of ``fast'': no worse than status quo on Windows.
+    \item Hopefully: on par with \texttt{epoll}-based version.
+    \item Hopefully: apply ideas from the Mio paper.
+    \item The remaining time will be spent on polishing.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Risk Management}
+  Risk management strategy: make it as minimal as possible
+  \begin{itemize}
+    \item Focus only on Windows support.
+    \item Focus only on socket I/O.
+    \item Use a lightweight networking library for testing \& benchmarking.
+    \item (instead of patching the standard one).
+    \item Re-evaluate after the first milestone.
+  \end{itemize}
+\end{frame}
+
+
+\section {Further Reading}
+
+\begin{frame}{Further Reading: GHC I/O Manager}
+  \begin{itemize}
+  \item \href{http://research.google.com/pubs/pub36841.html}{\emph{Scalable I/O Event Handling for GHC}}\\
+    Bryan O'Sullivan \& Johan Tibell\\
+  \item \href{http://haskell.cs.yale.edu/wp-content/uploads/2013/08/hask035-voellmy.pdf}{\emph{Mio:
+        A High-Performance Multicore IO
+        Manager for GHC}}\\
+    Andreas Voellmy et al.\\
+  \item \emph{GHC Trac issue \#7353}\\
+    \url{https://ghc.haskell.org/trac/ghc/ticket/7353}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Further Reading: Background}
+  On the programming model:
+  \begin{itemize}
+  \item
+    \emph{Parallel and Concurrent Programming in Haskell} (O'Reilly book)\\
+    by Simon Marlow
+  \end{itemize}
+  On the runtime system:
+  \begin{itemize}
+  \item
+    \href{http://community.haskell.org/~simonmar/papers/multicore-ghc.pdf}{\emph{Runtime
+    Support for Multicore Haskell}}\\
+    Simon Marlow, Simon Peyton Jones, Satnam Singh.
+  \item
+    \href{http://community.haskell.org/~simonmar/papers/conc-ffi.pdf}{\emph{Extending
+    the Haskell Foreign Function Interface with Concurrency}}\\
+    Simon Marlow, Simon Peyton Jones, Wolfgang Thaller
+  \end{itemize}
+\end{frame}
+
+\end{document}

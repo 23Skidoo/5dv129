@@ -1,0 +1,86 @@
+\documentclass[10pt, oneside]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[utf8]{inputenc}
+\usepackage[swedish]{babel}
+\usepackage{enumerate}
+\usepackage{titling}
+\usepackage[nottoc, notlof]{tocbibind}
+\usepackage[pdftex]{graphicx}
+\usepackage[kerning,spacing]{microtype}
+\usepackage{verbatim}
+\usepackage{color}
+\usepackage{listings}
+
+\usepackage[bookmarksnumbered, unicode, pdftex]{hyperref}
+
+\author{Mikhail Glushenkov, \texttt{<c05mgv@cs.umu.se>}}
+
+\title{A Cross-Platform Scalable I/O Manager for GHC}
+
+\newcommand{\unit}[1]{\ensuremath{\, \mathrm{#1}}}
+
+\begin{document}
+\thispagestyle{empty}
+
+\section*{A Cross-Platform Scalable I/O Manager for GHC}
+
+GHC is an industrial-strength compiler for Haskell, a popular lazy statically
+typed functional language. One of the areas GHC's implementation of Haskell
+shines at is concurrency: the programmer can create a very large number of cheap
+lightweight threads that are internally executed using a smaller number of
+operating system (OS) threads. While this model's simplicity is attractive from
+the programmer's perspective, it complicates the runtime system (RTS)
+implementation considerably.
+
+One part of the RTS that has seen active development activity recently is the
+I/O manager. When a Haskell thread does a blocking I/O operation, like writing
+to a socket or reading from a file, it should not be allowed to block the OS
+thread it's executing on. The job of the I/O manager is to handle all I/O
+activity behind the scenes and notify blocked Haskell threads about completed
+I/O operations.
+
+GHC version 7.0 for the first time included a new I/O manager~\cite{bib:tibell}
+that improved performance and allowed I/O to scale to a much larger number of
+threads than previously. In version 7.8, the implementation has been optimised
+even further~\cite{bib:mio} and now scales effectively up to 48 cores. Sadly,
+these improvements are available only to users on Unix-like platforms due to the
+differences between I/O event models on Windows (I/O completion ports) and Unix
+(\texttt{epoll}/\texttt{kqueue}/\texttt{poll}).
+
+This proposal is essentially about fixing the GHC issue \#7353~\cite{bib:ticket}
+and making the performance and scalability improvements enjoyed by users of GHC
+on Unix available to Haskell programmers on Windows. Due to time constraints,
+the project will initially focus only on socket I/O, ignoring file I/O for the
+time being. The project will involve redesigning the I/O manager API to support
+both IOCP and \texttt{epoll}-like event models; adding support for IOCP to the
+I/O manager code; adding support for new Windows I/O manager features to the
+standard networking library; and finally, optimising the resulting
+implementation. There is already some unfinished work in this area that this
+project can build on (see discussion in~\cite{bib:ticket}). The goal of the
+project is to produce a patchset suitable for inclusion in GHC (maybe after some
+further polishing).
+
+\renewcommand\refname{References}
+
+\begin{thebibliography}{9}
+
+\bibitem[Tibell 2010]{bib:tibell}
+  \href{http://research.google.com/pubs/pub36841.html}{\emph{Scalable I/O Event Handling for GHC}}\\
+  \newblock Bryan O'Sullivan \& Johan Tibell\\
+  \newblock Proceedings of the 2010 ACM SIGPLAN Haskell Symposium (Haskell'10).
+
+\bibitem[Voellmy 2013]{bib:mio}
+  \href{http://haskell.cs.yale.edu/wp-content/uploads/2013/08/hask035-voellmy.pdf}{\emph{Mio:
+      A High-Performance Multicore IO
+      Manager for GHC}}\\
+  \newblock Andreas Voellmy et al.\\
+  \newblock Proceedings of the 2013 ACM SIGPLAN symposium on Haskell (Haskell'13).
+
+\bibitem[GHC Trac]{bib:ticket} \emph{GHC Trac issue \#7353}\\
+  \newblock \url{https://ghc.haskell.org/trac/ghc/ticket/7353}
+
+\end{thebibliography}
+
+\end{document}

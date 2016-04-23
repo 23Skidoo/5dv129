@@ -1,0 +1,260 @@
+\documentclass[10pt, oneside]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{enumerate}
+\usepackage{titling}
+\usepackage[nottoc, notlof]{tocbibind}
+\usepackage[pdftex]{graphicx}
+\usepackage[kerning,spacing]{microtype}
+\usepackage{verbatim}
+\usepackage{color}
+
+\usepackage[bookmarksnumbered, unicode, pdftex]{hyperref}
+
+\author{Mikhail Glushenkov, \texttt{<c05mgv@cs.umu.se>}}
+
+\title{Planning Document}
+
+\newcommand{\unit}[1]{\ensuremath{\, \mathrm{#1}}}
+
+\begin{document}
+
+\pagestyle{plain}
+\pdfbookmark[1]{Framsidan}{beg}
+
+\begin{titlingpage}
+  \begin{minipage}[t]{0.45\textwidth}
+  \begin{flushleft}
+    \texttt{5DV129 - Degree Project: Bachelor of Science in Computing Science,
+      Spring 16}
+  \end{flushleft}
+  \end{minipage}
+  \begin{minipage}[t]{0.4\textwidth}
+  \begin{flushright}
+  \texttt{Umeå University}
+  \end{flushright}
+  \end{minipage}
+  \vskip 60pt
+  \begin{center}
+  \LARGE\thetitle
+  \par\end{center}\vskip 0.5em
+  \begin{center}
+  \large\theauthor
+  \par\end{center}
+  \begin{center}
+  Date: \today
+  \par\end{center}
+  \vfill
+  \begin{center}
+    \textbf{Thesis Supervisor} \linebreak \linebreak
+    Jerry Eriksson
+  \end{center}
+\end{titlingpage}
+
+% % i Sverige har vi normalt inget indrag vid nytt stycke
+% \setlength{\parindent}{0pt}
+% % men däremot lite mellanrum
+% \setlength{\parskip}{10pt}
+
+% Start with 0.
+\setcounter{section}{-1}
+
+\section{Introduction}
+\label{sec:intro}
+
+This document contains a short description of my thesis project and a
+preliminary time plan. The project is about making it possible to program
+network server applications in Haskell that work on Windows and support a large
+number of concurrent connections.
+
+\section{Background}
+\label{sec:background}
+
+Haskell is a popular functional language with a powerful static type system,
+focus on immutability, and a lazy (or call-by-need) evaluation strategy. The
+Glasgow Haskell Compiler, GHC, is a flagship industrial-strength implementation
+of Haskell. GHC is open source, compiles to fast native code on multiple
+platforms, and supports a lot of extensions to the Haskell 2010
+standard~\cite{bib:haskell-2010}. The extensions relevant to this project are
+related to concurrency, specifically we're interested in the Concurrent Haskell
+programming model~\cite{bib:marlow}.
+
+The Concurrent Haskell programming model revolves around the concept of ``green
+threads'': lightweight user-space threads that are multiplexed onto a much
+smaller number of operating system (OS) threads (this number is usually set to
+be equal to the number of cores). The lightweight character makes it possible to
+create a large number (100K-1M) of threads; this can be used, for example, to
+associate a thread with each open connection in a network server. Each
+connection-bound thread then uses synchronous (blocking) I/O calls for
+client-server communication. This model is nicer and more natural to program in
+than an event-based one, in which all clients are served from a single thread
+(one real-world example is NodeJS).
+
+However, a foreign call that blocks a Haskell thread must not be allowed to
+block the OS thread it's executing on. So the GHC's runtime system
+(RTS)~\cite{bib:ghc-rts-multicore} has to do some work behind the scenes to keep
+up the appearances. For foreign calls in general it uses a ``safe FFI call''
+mechanism (see ~\cite{bib:ffi-conc} for more details); for the particular case
+of I/O it has an I/O manager -- a dedicated thread that handles all I/O activity
+and notifies blocked Haskell threads about completed I/O
+operations. Interestingly, the I/O manager itself is largely written in Haskell
+(unlike the rest of the RTS, which is in C).
+
+The original implementation of the I/O manager used the venerable
+\texttt{select} Unix API call, which is unsuitable for high-performance
+applications. GHC version 7.0 for the first time included a new I/O
+manager~\cite{bib:tibell} built upon \texttt{epoll}/\texttt{kqueue} which
+improved performance and allowed I/O to scale to a much larger number of threads
+than previously. In version 7.8, the implementation has been optimised even
+further~\cite{bib:mio} and now scales effectively up to 48 cores.
+
+\section{Problem Statement}
+\label{sec:problem}
+
+Sadly, the improvements described above are available only to GHC users on
+Unix-like platforms due to the differences between I/O event models on Windows
+(I/O completion ports) and Unix
+(\texttt{epoll}/\texttt{kqueue}/\texttt{poll}). While in the Unix model the
+programmer registers a number of file descriptors and waits for them to become
+ready to do I/O, with I/O completion ports the programmer starts all I/O
+operations asynchronously and waits for their completion. On Windows, GHC RTS
+currently lacks an I/O manager and uses safe FFI calls. Besides suboptimal
+performance, this also means that I/O on Windows is not interruptible: a thread
+that is stuck in a blocking I/O call cannot be killed by an asynchronous
+exception (e.g. timeout).
+
+This project is essentially about fixing the GHC issue \#7353~\cite{bib:ticket}
+and making the performance and scalability improvements enjoyed by users of GHC
+on Unix available to Haskell programmers on Windows. The corresponding research
+question is how exactly that can be achieved.
+
+\section{Proposed Solution}
+\label{sec:solution}
+
+The proposed solution is to implement a Windows I/O manager on top of the I/O
+completion ports API. There is already an existing unfinished
+implementation~\cite{bib:ticket}, so the project will build upon that.
+
+The proposed solution requires performing at least the following steps:
+
+\begin{itemize}
+\item Redesign GHC's internal APIs to support the Windows model.
+\item Add support for IOCP to the I/O manager code.
+\item Implement a minimal custom socket I/O library for testing.
+\item Benchmark and test the new implementation.
+\item Optimise the new implementation (likely by integrating with the RTS
+  scheduler).
+\end{itemize}
+
+The ultimate goal of this project is to produce a patchset suitable for
+inclusion in GHC, though that will likely require some further polishing after
+the thesis is submitted.
+
+\section{Time Plan}
+\label{sec:time-plan}
+
+The project will consist of two phases. During the first phase, the goal will be
+to make the Windows implementation functional, but not necessarily fast. Success
+criterion for this phase is working implementation of interruptible socket I/O.
+
+During the second phase, the work will focus on making the implementation fast,
+that is, practical for real-world applications. This means that it must to be no
+worse than status quo on Windows. Hopefully, it will be possible to make it as
+fast as the current \texttt{epoll}-based one, probably by applying ideas from
+the~\cite{bib:mio} paper.
+
+The preliminary detailed time plan looks as follows:
+
+\begin{center}
+\begin{tabular}{|l|l|}
+\hline
+Week 1    & Study the existing implementation, describe it in the report.\\
+\hline
+Week 2-3  & Port old code to a new GHC, benchmark \& test.\\
+\hline
+\textbf{April 25th} & Mid-project seminar: first milestone, re-evaluation.\\
+\hline
+Week 4-7  & Try to make the implementation practical for real applications.\\
+\hline
+\textbf{May 20th} & Draft submission\\
+\hline
+\textbf{May 23rd} & Conference\\
+\hline
+Week 8    & Polishing       \\
+\hline
+\textbf{May 30th/31st} & Disputation\\
+\hline
+\textbf{June 2nd} & Submission of the opposition report\\
+\hline
+\textbf{June 7th} & Submission of the final manuscript\\
+\hline
+\end{tabular}
+\end{center}
+
+\section{Risk Management}
+\label{sec:risk-management}
+
+Given that the time alotted for the project is very short, the risk management
+strategy is to make the implementation as minimal as possible. Specifically, the
+implementation will focus only on Windows support (the code will be
+theoretically portable to other operating systems); the implementation will
+focus only on socket I/O, ignoring file I/O completely; the implementation will
+also use a lightweight custom library for networking instead of patching the
+standard one. After the first milestone the state of the project will be
+re-evaluated to see whether a change in goals or downsizing is needed.
+
+\pagebreak
+
+\begin{thebibliography}{9}
+\label{sec:refs}
+
+\bibitem[Haskell 2010]{bib:haskell-2010}
+  \newblock
+  \href{https://www.haskell.org/onlinereport/haskell2010/}{\emph{Haskell 2010
+      Language Report}}\\
+  \newblock Simon Marlow (ed.)\\
+  \newblock Haskell.org, 2010\\
+
+\bibitem[Tibell 2010]{bib:tibell}
+  \newblock \href{http://research.google.com/pubs/pub36841.html}{\emph{Scalable I/O Event Handling for GHC}}\\
+  \newblock Bryan O'Sullivan \& Johan Tibell\\
+  \newblock Proceedings of the 2010 ACM SIGPLAN Haskell Symposium (Haskell'10).
+
+\bibitem[Voellmy 2013]{bib:mio}
+  \newblock \href{http://haskell.cs.yale.edu/wp-content/uploads/2013/08/hask035-voellmy.pdf}{\emph{Mio:
+      A High-Performance Multicore IO
+      Manager for GHC}}\\
+  \newblock Andreas Voellmy et al.\\
+  \newblock Proceedings of the 2013 ACM SIGPLAN symposium on Haskell
+  (Haskell'13).
+
+\bibitem[GHC Trac]{bib:ticket} \emph{GHC Trac issue \#7353}\\
+  \newblock \url{https://ghc.haskell.org/trac/ghc/ticket/7353}\\
+  \newblock URL accessed \today.\\
+
+\bibitem[Marlow 2013]{bib:marlow}
+  \newblock \href{http://community.haskell.org/~simonmar/pcph/}{\emph{Parallel and
+      Concurrent Programming in
+      Haskell}}\\
+  \newblock Simon Marlow\\
+  \newblock O'Reilly, 2013\\
+
+\bibitem[Marlow 2009]{bib:ghc-rts-multicore}
+  \newblock \href{http://community.haskell.org/~simonmar/papers/multicore-ghc.pdf}{\emph{Runtime
+      Support for Multicore Haskell}}\\
+  \newblock Simon Marlow, Simon Peyton Jones, Satnam Singh.\\
+  \newblock ICFP '09: Proceeding of the 14th ACM SIGPLAN International
+  Conference on Functional Programming, Edinburgh, Scotland, August 2009.\\
+
+\bibitem[Marlow 2004]{bib:ffi-conc}
+  \newblock \href{http://community.haskell.org/~simonmar/papers/conc-ffi.pdf}{\emph{Extending
+      the Haskell Foreign Function Interface with Concurrency}}\\
+  \newblock Simon Marlow, Simon Peyton Jones, Wolfgang Thaller\\
+  \newblock Proceedings of the ACM SIGPLAN workshop on Haskell, pages 57--68, Snowbird, Utah, USA, September 2004\\
+
+\end{thebibliography}
+
+\end{document}

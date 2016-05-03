@@ -1,12 +1,8 @@
 \documentclass[a4paper,11pt,oneside]{report}
 
-%\usepackage{UmUThesis}           % Standard English
 \usepackage[noindent]{UmUThesis}  % Non indented English
-%\usepackage[se]{UmUThesis}       % Swedish
 
 \usepackage[utf8]{inputenc}
-%\usepackage{courier}              % Nicer fonts are used. (not necessary)
-%\usepackage{pslatex}              % Also nicer fonts. (not necessary)
 \usepackage[urw-garamond]{mathdesign}
 \usepackage[defaultmono, scale=0.8]{droidmono}
 \usepackage[bookmarksnumbered, unicode, pdftex, hidelinks]{hyperref}
@@ -20,11 +16,10 @@
 \subtitle{Subtitle of your thesis}
 \author{Mikhail Glushenkov}
 \supervisor{Jerry Eriksson}
-\supervisore{}
 \examiner{Some Examiner}
 \semester{Spring 2016}
 \course{Bachelor's thesis, 15 credits}
-%\education{Kandidatprogrammet i datavetenskap, 180 hp}
+%\education{}
 
 \graphicspath{{pictures/}}
 
@@ -215,10 +210,10 @@ In the report document class references are not included in the
 table of contents. If you like it to be, use the trick described in
 the previous section.
 
-% Remember to cite the literature and web-papers in an appropriate way.
-% There are many ways to do that, such as the following \cite{Lamp94} where
-% you can read about how to create a reference list in a {\LaTeX}\-report
-% using BibTex.
+Remember to cite the literature and web-papers in an appropriate way.  There are
+many ways to do that, such as the following \texttt{\textbackslash{}cite\{Lamp94\}} where you
+can read about how to create a reference list in a {\LaTeX}\-report using
+BibTex.
 
 \section{Other tricks}
 
@@ -259,11 +254,6 @@ before the first page, then
 before the first chapter.
 
 
-%
-% In order to use the bibliography{base}-command you have to prepare a "database"
-% base.bib in a certain format and then run the bibtex-command (a Unix-command)
-% to create a file base.bbl which LaTeX uses to create References
-%
 \addcontentsline{toc}{chapter}{\bibname}
 \bibliographystyle{plain}
 \bibliography{base}

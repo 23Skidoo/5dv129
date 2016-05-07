@@ -197,7 +197,7 @@ delicata has.
 \chapter{Old Windows I/O Manager}
 
 \textbf{Description of the previous attempt at implementing a Windows I/O
-  Manager.}
+  Manager. TODO: Better title for the chapter.}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -360,7 +360,8 @@ delicata has.
 \chapter{Experimental Results}
 
 \textbf{Benchmarks: comparison of the new I/O manager with old code and the
-  current implementation in GHC 8.}
+  current implementation in GHC 8. Currently I plan to use the same benchmarks
+  as in the~\cite{bib:o'sullivan} paper: pong, file and timeouts.}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -494,82 +495,44 @@ cotidieque, ex facer mediocritatem eam.
 \addcontentsline{toc}{chapter}{\bibname}
 \begin{thebibliography}{9}
 
-\bibitem[Placeholder]{bib:placeholder}
-  \textbf{A placeholder reference section that will be replaced with the real
-    thing in the future.}
+\bibitem[Haskell 2010]{bib:haskell2010}
+  \emph{Haskell 2010 Language Report}\\
+  \newblock Simon Marlow et al.\\
+  \newblock \url{https://www.haskell.org/onlinereport/haskell2010/}\\
+  \newblock URL accessed \today.
 
-\bibitem[Takeuchi 1986]{bib:scrum-game}
-  \emph{The New New Product Development Game}\\
-  \newblock Hirotaka Takeuchi \& Ikujiro Nonaka\\
-  \newblock Harvard Business Review 86116:137–146, 1986. Jan 1, 1986.\\
-  \newblock \url{https://hbr.org/1986/01/the-new-new-product-development-game}\\
-  \newblock URL accessad \today.\\
+\bibitem[GHC]{bib:ghc}
+  \emph{The Glasgow Haskell Compiler}\\
+  \newblock \url{https://www.haskell.org/ghc/}\\
+  \newblock URL accessed \today.
 
-\bibitem[Schwaber 1995]{bib:scrum-paper} \emph{SCRUM Development Process}\\
-  \newblock Ken Schwaber\\
-  \newblock Business object design and implementation: OOPSLA '95
-  workshop proceedings.\\
-  \newblock OOPS Messenger 6:4:170-175. ACM/SIGPLAN October, 1995.\\
-  \newblock \url{http://jeffsutherland.org/oopsla/schwapub.pdf}\\
-  \newblock URL accessad \today.\\
+\bibitem[O'Sullivan 2010]{bib:o'sullivan}
+  \href{http://research.google.com/pubs/pub36841.html}{\emph{Scalable I/O Event Handling for GHC}}\\
+  \newblock Bryan O'Sullivan \& Johan Tibell\\
+  \newblock Proceedings of the 2010 ACM SIGPLAN Haskell Symposium (Haskell'10).
 
-\bibitem[Schwaber 2013]{bib:scrum-guide} \emph{The Scrum Guide}\\
-  \newblock Ken Schwaber, Jeff Sutherland\\
-  \newblock
-  \url{http://www.scrumguides.org/docs/scrumguide/v1/scrum-guide-us.pdf}\\
-  \newblock URL accessad \today.\\
+\bibitem[Voellmy 2013]{bib:voellmy}
+  \href{http://haskell.cs.yale.edu/wp-content/uploads/2013/08/hask035-voellmy.pdf}{\emph{Mio:
+      A High-Performance Multicore IO
+      Manager for GHC}}\\
+  \newblock Andreas Voellmy et al.\\
+  \newblock Proceedings of the 2013 ACM SIGPLAN symposium on Haskell (Haskell'13).
 
-\bibitem[Rubin 2013]{bib:scrum-essential}
-  \emph{Essential Scrum: A Practical Guide to
-    the Most Popular Agile Process}\\
-  \newblock Kenneth S. Rubin\\
-  \newblock Addison-Wesley, 2013\\
+\bibitem[Marlow 2004]{bib:marlow2004}
+  \href{http://community.haskell.org/~simonmar/bib/concffi04_abstract.html}{\emph{Extending the Haskell Foreign Function Interface with Concurrency}}\\
+  \newblock Simon Marlow, Simon Peyton Jones, Wolfgang Thaller\\
+  \newblock Proceedings of the ACM SIGPLAN workshop on Haskell, pages 57--68,
+  Snowbird, Utah, USA, September 2004
 
-\bibitem[Kniberg 2015]{bib:scrum-trenches}
-  \emph{Scrum and XP from the Trenches: How we do Scrum, 2nd edition}\\
-  \newblock Henrik Kniberg\\
-  \newblock C4Media, 2015\\
-  \newblock \url{http://www.infoq.com/minibooks/scrum-xp-from-the-trenches-2}\\
-  \newblock URL accessad \today.\\
+\bibitem[Marlow 2009]{bib:marlow2009}
+  \href{http://community.haskell.org/~simonmar/bib/multicore-ghc-09_abstract.html}{\emph{Runtime Support for Multicore Haskell}}\\
+  \newblock Simon Marlow, Simon Peyton Jones, Satnam Singh\\
+  \newblock \emph{ICFP '09:} Proceeding of the 14th ACM SIGPLAN International
+  Conference on Functional Programming, Edinburgh, Scotland, August 2009
 
-\bibitem[Kniberg 2010]{bib:kanban-scrum}
-  \emph{Kanban and Scrum: Making the most of both}\\
-  \newblock Henrik Kniberg, Mattias Skarin\\
-  \newblock C4Media, 2010\\
-  \newblock \url{http://www.infoq.com/minibooks/kanban-scrum-minibook}\\
-  \newblock URL accessad \today.\\
-
-\bibitem[Poppendieck 2003]{bib:lsd-toolkit}
-  \emph{Lean Software Development: An Agile Toolkit}\\
-  \newblock Mary Poppendieck, Tom Poppendieck\\
-  \newblock Addison Wesley, 2003\\
-
-\bibitem[Hibbs 2009]{bib:lsd-art} \emph{The Art of Lean Software Development}\\
-  \newblock Curt Hibbs, Steve Jewett \& Mike Sullivan\\
-  \newblock O'Reilly, 2009\\
-
-\bibitem[Kniberg 2011]{bib:lsd-kanban} \emph{Lean from the Trenches: Managing
-    Large-Scale Projects with Kanban}\\
-  \newblock Henrik Kniberg\\
-  \newblock The Pragmatic Programmers, 2011\\
-
-\bibitem[Fowler 2008]{bib:fowler} \emph{Agile versus Lean}\\
-  \newblock Martin Fowler\\
-  \newblock \url{http://martinfowler.com/bliki/AgileVersusLean.html}\\
-  \newblock URL accessad \today.\\
-
-\bibitem[Starr 2012]{bib:starr} \emph{The Lean of Scrum}\\
-  \newblock David Starr\\
-  \newblock
-    \url{https://msdn.microsoft.com/en-us/library/jj161049%28v=vs.120%29.aspx}\\
-  \newblock URL accessad \today.\\
-
-\bibitem[Shalloway 2009]{bib:shalloway}
-  \emph{Comparing Scrum to Lean - Not Quite Apples to Oranges}\\
-  \newblock Al Shalloway\\
-  \newblock
-  \url{http://www.netobjectives.com/blogs/comparing-scrum-lean-not-quite-apples-oranges}\\
-  \newblock URL accessad \today.\\
+\bibitem[GHC Trac]{bib:ticket-7353} \emph{GHC Trac issue \#7353}\\
+  \newblock \url{https://ghc.haskell.org/trac/ghc/ticket/7353}\\
+  \newblock URL accessed \today.
 
 \end{thebibliography}
 

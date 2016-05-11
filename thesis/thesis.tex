@@ -138,9 +138,9 @@ programs cannot go wrong''. While originally that referred only to memory
 safety, a lot of Haskell-related research has gone into making Haskell programs
 not ``go wrong'' in more interesting ways. For example, functions with pure
 types are statically guaranteed to not have any side effects; for more advanced
-examples, see~\cite{bib:fun}. Type-correct Haskell programs are also widely
-perceived to not be wrong to begin with: when the code compiles, it often just
-works~\cite{bib:wiki-works}. Type inference removes the syntactic burden of
+examples, see~\cite{bib:gibbons2003}. Type-correct Haskell programs are also
+widely perceived to not be wrong to begin with: when the code compiles, it often
+just works~\cite{bib:wiki-works}. Type inference removes the syntactic burden of
 manually written type annotations and, again, makes the code more concise.
 
 Ease of refactoring is probably the killer feature of Haskell. Static type
@@ -169,7 +169,8 @@ A lot of extensions.
 
 Compiles to fast native code.
 
-Open source.
+GHC is open source. It is largely written in Haskell itself, though some parts
+relevant for the topic of this work are in C.
 
 Great support for concurrent and parallel programming.
 
@@ -203,8 +204,8 @@ delicata has.
 \section{Concurrent Haskell}
 
 While GHC Haskell supports a number of different parallel and concurrent
-programming models, the Concurrent Haskell extension~\cite{marlow2013} is the
-most relevant one for the purposes of this thesis.
+programming models, the Concurrent Haskell extension~\cite{bib:marlow2013} is
+the most relevant one for the purposes of this thesis.
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu

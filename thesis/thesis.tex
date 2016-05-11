@@ -62,10 +62,10 @@ cotidieque, ex facer mediocritatem eam.
 \pagestyle{fancy}
 \setcounter{page}{1}
 
-\chapter{Background}
+\chapter{Introduction}
 
-\textbf{Background section. Explain: Haskell, GHC, GHC RTS, GHC I/O manager,
-  etc.}
+\textbf{One page. An expanded version of the abstract and a brief overview of
+  all chapters.}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -76,8 +76,102 @@ Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
 vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
 cotidieque, ex facer mediocritatem eam.
 
+Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
+signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
+cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
+omnium albucius indoctum mei te. Ne tation debitis vel.
+
+Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
+periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
+urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
+vero congue aliquam, te volutpat iudicabit vel, vel an utamur
+interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
+lorem semper euismod.
+
+Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
+eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
+detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
+graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
+delicata has.
+
+
+\chapter{Background}
+
+This chapter provides some necessary background required for understanding the
+remainder of the thesis. It gives a short overview of Haskell, Glasgow Haskell
+Compiler and the Concurrent Haskell extension, and describes GHC's input/output
+subsystem.
 
 \section{Haskell}
+
+Haskell~\cite{bib:haskell2010} is a popular programming language with a unique
+combination of features making it highly attractive for programming
+high-performance networking applications. Specifically, Haskell has a powerful
+static type system, focus on immutability, and advanced support for concurrent
+and parallel programming~\cite{bib:marlow2013}. GHC, the flagship Haskell
+compiler, generates fast native code and has a highly optimised network I/O
+layer~\cite{bib:voellmy}. One unique aspect of Haskell is the non-strict
+(call-by-value) evaluation strategy.
+
+The origins of Haskell can be traced to a 1987 meeting at a FPCA conference in
+Portland, Oregon, when a number of programming language researchers decided to
+agree on a standard for a lazy functional programming language to serve as a
+common foundation for application development and a research laboratory for
+testing new ideas~\cite{bib:hudak2007}. Since then, Haskell continued to evolve
+and grow in popularity, gaining a measure of industry adoption and a number of
+advanced language extensions.
+
+Experimental type system features notwithstanding, the attractiveness of Haskell
+to a working programmer is largely due to three factors: high level of
+abstraction, statically enforced type safety and ease of refactoring.
+
+Haskell code is high-level and concise. Its pure nature (by default functions in
+Haskell cannot have side effects or mutate data) makes it easier to reason about
+code, since a pure function will always have the same result for a given set of
+inputs. Its concise syntax makes the cost of creating helper (often local)
+functions low, and higher-order functions make such helper functions more
+powerful. This makes idiomatically written Haskell code less repetitive and
+encourages expressing the problem domain in a more abstract way.
+
+Haskell is type safe. According to Robin Milner's well-known quote, ``well-typed
+programs cannot go wrong''. While originally that referred only to memory
+safety, a lot of Haskell-related research has gone into making Haskell programs
+not ``go wrong'' in more interesting ways. For example, functions with pure
+types are statically guaranteed to not have any side effects; for more advanced
+examples, see~\cite{bib:fun}. Type-correct Haskell programs are also widely
+perceived to not be wrong to begin with: when the code compiles, it often just
+works~\cite{bib:wiki-works}. Type inference removes the syntactic burden of
+manually written type annotations and, again, makes the code more concise.
+
+Ease of refactoring is probably the killer feature of Haskell. Static type
+checking makes refactoring safe and easy, and therefore large refactorings are
+much more common in Haskell than in many other languages. This ability means
+that it's easier for the code to evolve with changing requirements, thus making
+maintenance and continued development cheaper.
+
+All this made Haskell one of the most popular languages in its niche (statically
+typed, garbage collected, functional). Hackage, the online repository of Haskell
+libraries, holds around ten thousand different packages, and every day there are
+about 1500 people communicating on \texttt{\#haskell} chat channel on
+\texttt{\#freenode}.
+
+\section{GHC}
+
+GHC~\cite{bib:ghc} is a flagship industrial-strength implementation of Haskell
+developed initially at the University of Glasgow (hence the name, Glasgow
+Haskell Compiler), and later at Microsoft Research Cambridge and by a large
+number of contributors worldwide. GHC is by now synonymous with Haskell, and
+while there is an official Haskell language standard~\cite{bib:haskell2010}, it
+is considered a bit conservative, and therefore a serious production code base
+written in Haskell will most likely utilise a number of GHC-specific extensions.
+
+A lot of extensions.
+
+Compiles to fast native code.
+
+Open source.
+
+Great support for concurrent and parallel programming.
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -108,34 +202,9 @@ delicata has.
 
 \section{Concurrent Haskell}
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
-
-\section{GHC}
+While GHC Haskell supports a number of different parallel and concurrent
+programming models, the Concurrent Haskell extension~\cite{marlow2013} is the
+most relevant one for the purposes of this thesis.
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -501,6 +570,28 @@ cotidieque, ex facer mediocritatem eam.
   \newblock \url{https://www.haskell.org/onlinereport/haskell2010/}\\
   \newblock URL accessed \today.
 
+\bibitem[Hudak 2007]{bib:hudak2007}
+  \href{http://research.microsoft.com/en-us/um/people/simonpj/papers/history-of-haskell/history.pdf}{\emph{A History of Haskell: being lazy with class}}\\
+  \newblock Paul Hudak, John Hughes, Simon Peyton Jones, Philip Wadler\\
+  \newblock The Third ACM SIGPLAN History of Programming Languages Conference
+  (HOPL-III) San Diego, California, June 9-10, 2007.
+
+\bibitem[Marlow 2013]{bib:marlow2013}
+  \href{http://community.haskell.org/~simonmar/pcph/}{Parallel and Concurrent
+    Programming in Haskell }\\
+  \newblock Simon Marlow\\
+  \newblock O'Reilly 2013, ISBN: 978-1449335946
+
+\bibitem[Gibbons 2003]{bib:gibbons2003}
+  \href{https://www.cs.ox.ac.uk/publications/books/fop/}{\emph{The Fun of Programmin}}\\
+  \newblock ed. by Jeremy Gibbons and Oege de Moor\\
+  \newblock Palgrace MacMillan, 2003.
+
+\bibitem[Wiki]{bib:wiki-works} \emph{Why Haskell just works}\\
+  \newblock \url{https://wiki.haskell.org/Why_Haskell_just_works}\\
+  \newblock Haskell Wiki\\
+  \newblock URL accessed \today.
+
 \bibitem[GHC]{bib:ghc}
   \emph{The Glasgow Haskell Compiler}\\
   \newblock \url{https://www.haskell.org/ghc/}\\
@@ -530,8 +621,12 @@ cotidieque, ex facer mediocritatem eam.
   \newblock \emph{ICFP '09:} Proceeding of the 14th ACM SIGPLAN International
   Conference on Functional Programming, Edinburgh, Scotland, August 2009
 
-\bibitem[GHC Trac]{bib:ticket-7353} \emph{GHC Trac issue \#7353}\\
+\bibitem[GHC Trac]{bib:ticket7353} \emph{GHC Trac issue \#7353}\\
   \newblock \url{https://ghc.haskell.org/trac/ghc/ticket/7353}\\
+  \newblock URL accessed \today.
+
+\bibitem[GHC Wiki]{bib:ghc-wiki-windows-ghc} \emph{Windows Support for GHC}\\
+  \newblock \url{https://ghc.haskell.org/trac/ghc/wiki/WindowsGhc}\\
   \newblock URL accessed \today.
 
 \end{thebibliography}

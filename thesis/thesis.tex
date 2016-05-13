@@ -30,14 +30,20 @@
 
 \chapter*{Abstract}
 % 10-20 lines
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+Haskell is a popular functional programming language. GHC is an
+industrial-strength implementation of Haskell that has a number of features and
+language extensions making it a very attractive platform for writing
+high-performance network applications. Unfortunately, support for modern
+scalable network I/O APIs in the GHC runtime system is currently limited to
+Unix-like platforms. Haskell applications targeting Windows therefore cannot
+attain the same levels of scalability and performance, and also have some
+correctness problems.
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+A redesign of GHC's Windows I/O subsystem is proposed, making use of the Windows
+I/O completion ports API. A proof of concept implementation of the design is
+evaluated and found to be a strict improvement over the current state of
+affairs. The improvements are transparently available to existing Haskell
+applications.
 
 \pagebreak
 
@@ -172,40 +178,13 @@ Compiles to fast native code.
 GHC is open source. It is largely written in Haskell itself, though some parts
 relevant for the topic of this work are in C.
 
-Great support for concurrent and parallel programming.
-
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+GHC is also  support for concurrent and parallel programming.
 
 \section{Concurrent Haskell}
 
-While GHC Haskell supports a number of different parallel and concurrent
-programming models, the Concurrent Haskell extension~\cite{bib:marlow2013} is
-the most relevant one for the purposes of this thesis.
+While GHC Haskell supports a number of different models and abstractions for
+doing parallel and concurrent programming~\cite{bib:marlow2013}, the Concurrent
+Haskell extension is the most relevant one for the purposes of this thesis.
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -579,7 +558,7 @@ cotidieque, ex facer mediocritatem eam.
 
 \bibitem[Marlow 2013]{bib:marlow2013}
   \href{http://community.haskell.org/~simonmar/pcph/}{Parallel and Concurrent
-    Programming in Haskell }\\
+    Programming in Haskell}\\
   \newblock Simon Marlow\\
   \newblock O'Reilly 2013, ISBN: 978-1449335946
 

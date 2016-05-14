@@ -31,12 +31,12 @@
 \chapter*{Abstract}
 % 10-20 lines
 Haskell is a popular functional programming language. GHC is an
-industrial-strength implementation of Haskell that has a number of features and
-language extensions making it a very attractive platform for writing
-high-performance network applications. Unfortunately, support for modern
-scalable network I/O APIs in the GHC runtime system is currently limited to
-Unix-like platforms. Haskell applications targeting Windows therefore cannot
-attain the same levels of scalability and performance, and also have some
+industrial-strength implementation of Haskell that has a number of features
+making it a very attractive platform for writing high-performance network
+applications. Unfortunately, support for modern scalable network I/O APIs in the
+GHC runtime system is currently limited to Unix-like platforms. Haskell
+applications targeting Windows therefore cannot attain the same levels of
+scalability and performance as their Unix counterparts, and also have some
 correctness problems.
 
 A redesign of GHC's Windows I/O subsystem is proposed, making use of the Windows
@@ -67,41 +67,51 @@ cotidieque, ex facer mediocritatem eam.
 
 \pagestyle{fancy}
 \setcounter{page}{1}
+\setcounter{chapter}{-1}
 
 \chapter{Introduction}
 
-\textbf{One page. An expanded version of the abstract and a brief overview of
-  all chapters.}
+Threads are a simple and powerful abstraction for implementing network
+applications such as web servers. Using one thread per connection lets the
+programmer express client-server communication in a modular way, simplifies
+exception handling and resource management, and prevents requests that are
+CPU-intensive to process from causing starvation by taking control over
+scheduling out of programmer's hands. However, OS-level threads incur too much
+of an overhead in terms of context-switching and fixed memory costs to make them
+practical for high-performance applications; therefore, all modern APIs for
+scalable network I/O are event-based. In the event-based model communication
+with all clients is handled by a just a single thread processing all incoming
+I/O events in an infinite loop.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+\textit{Haskell threads}, as implemented in GHC, combine the simplicity of the
+thread-based model with the performance of the event-based approach. Haskell
+threads have low memory and context-switching overhead, thus allowing to create
+a large number of them (100K-1M), enough to associate a single thread with each
+connection. A separate I/O manager thread, implemented as part of the runtime
+system, handles all I/O under the hood, providing the Haskell programmer with a
+convenient synchronous API. In the recent releases of GHC the I/O manager has
+been modified to use modern event-based I/O APIs and heavily optimised, making
+it competitive with current state of the art.
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+Sadly, those improvements are available only to GHC users on Unix-like platforms
+due to differences between I/O event models on Windows (I/O completion ports)
+and Unix (\texttt{epoll}/\texttt{kqueue}/\texttt{poll}). This thesis proposes a
+way to solve this problem by redesigning GHC's Windows I/O subsystem to make use
+of the I/O completion ports API. The evaluation of this redesign shows it to be
+a strict improvement over the current state of affairs.
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
-
+The rest of this document is organised as follows: chapter~\ref{chap:background}
+provides an overview of the background necessary for understanding the rest of
+the thesis; chapter~\ref{chap:old-io-manager} outlines the previous attempt at
+implementing a Windows I/O manager for GHC; chapter~\ref{chap:new-io-manager}
+contains a description of the proposed new design for the Windows I/O manager;
+chapter~\ref{chap:evaluation} presents an empirical evaluation of a proof of
+concept implementation of the new design; chapter~\ref{chap:related-work}
+discusses related work; and finally, chapter~\ref{chap:conclusions} contains
+some final words and reflections about possible future directions.
 
 \chapter{Background}
+\label{chap:background}
 
 This chapter provides some necessary background required for understanding the
 remainder of the thesis. It gives a short overview of Haskell, Glasgow Haskell
@@ -129,7 +139,7 @@ advanced language extensions.
 
 Experimental type system features notwithstanding, the attractiveness of Haskell
 to a working programmer is largely due to three factors: high level of
-abstraction, statically enforced type safety and ease of refactoring.
+abstraction, statically enforced type safety, and ease of refactoring.
 
 Haskell code is high-level and concise. Its pure nature (by default functions in
 Haskell cannot have side effects or mutate data) makes it easier to reason about
@@ -158,7 +168,7 @@ maintenance and continued development cheaper.
 All this made Haskell one of the most popular languages in its niche (statically
 typed, garbage collected, functional). Hackage, the online repository of Haskell
 libraries, holds around ten thousand different packages, and every day there are
-about 1500 people communicating on \texttt{\#haskell} chat channel on
+about 1500 people communicating on the \texttt{\#haskell} chat channel on
 \texttt{\#freenode}.
 
 \section{GHC}
@@ -244,6 +254,7 @@ delicata has.
 
 
 \chapter{Old Windows I/O Manager}
+\label{chap:old-io-manager}
 
 \textbf{Description of the previous attempt at implementing a Windows I/O
   Manager. TODO: Better title for the chapter.}
@@ -334,6 +345,7 @@ omnium albucius indoctum mei te. Ne tation debitis vel.
 
 
 \chapter{New Windows I/O Manager}
+\label{chap:new-io-manager}
 
 \textbf{Description of my design for the new I/O Manager and implemented
   improvements.}
@@ -407,6 +419,7 @@ graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
 delicata has.
 
 \chapter{Experimental Results}
+\label{chap:evaluation}
 
 \textbf{Benchmarks: comparison of the new I/O manager with old code and the
   current implementation in GHC 8. Currently I plan to use the same benchmarks
@@ -494,6 +507,7 @@ cotidieque, ex facer mediocritatem eam.
 
 
 \chapter{Related Work}
+\label{chap:related-work}
 
 \textbf{A review of literature with pointers to related papers and similar work
   done for systems other than GHC.}
@@ -526,7 +540,8 @@ graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
 delicata has.
 
 
-\chapter{Conclusions}
+\chapter{Conclusions and Future Work}
+\label{chap:conclusions}
 
 \textbf{This section will contain some final words and reflections about
   possible future directions.}

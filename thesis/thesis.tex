@@ -54,6 +54,8 @@ applications.
 
 \textbf{TODO: write.}
 
+% Felix Martini
+
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
 vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
@@ -198,10 +200,10 @@ optimisation.
 
 A large number of target architectures is supported, though only x86 and x86-64
 are currently Tier 1. Linux, Windows, OS X, and FreeBSD are Tier 1 supported
-target operating systems. An extensive runtime system provides a parallel,
-generational garbage collector, a load-balancing multicore scheduler for Haskell
-threads, and support for profiling, exception handling and other tasks
-associated with running compiled Haskell code.
+target operating systems. An extensive runtime system (RTS for short) provides a
+parallel, generational garbage collector, a load-balancing multicore scheduler
+for Haskell threads, and support for profiling, exception handling and other
+tasks associated with running compiled Haskell code.
 
 Besides having an abundance of type system and language extensions and
 state-of-the-art code optimisation capabilities, GHC is also renowned for its
@@ -462,7 +464,8 @@ Let's look at the IOCP API in more detail. For the purposes of this discussion,
 it can be boiled down to the following five functions:
 
 \begin{verbatim}
-    HANDLE CreateIoCompletionPort(HANDLE    FileHandle,
+    HANDLE CreateIoCompletionPort(
+      HANDLE    FileHandle,
       HANDLE    ExistingCompletionPort,
       ULONG_PTR CompletionKey,
       DWORD     NumberOfConcurrentThreads
@@ -581,11 +584,9 @@ interface looks a bit differently:
 
     type StartCallback = Overlapped -> IO ()
 
-
     type CompletionCallback a = ErrCode
                              -> DWORD
                              -> IO a
-
 \end{verbatim}
 
 Here, the \texttt{Manager} type represents a reference to the internal I/O
@@ -659,29 +660,143 @@ chapter~\ref{chap:conclusions} for some discussion on this topic.
 
 As was shown in the previous chapter, the existing attempt at implementing a
 Windows I/O manager for GHC suffers from performance problems making it unusable
-in practice and unsuitable for inclusion in mainline GHC. This chapter outlines
-a new I/O manager design that attempts to solve or at least alleviate those
-problems. Most ideas discussed in this chapter were originally proposed in
-the~\cite{bib:voellmy} paper.
+in practice and unsuitable for inclusion in mainline GHC. This chapter describes
+a new Windows I/O manager design that attempts to solve or at least alleviate
+those problems. Most ideas discussed in this chapter were originally proposed in
+the~\cite{bib:voellmy} paper. A partial proof of concept implementation of this
+design is the focus of the next chapter.
 
-\section{Removing the context-switching overhead}
+\section{Removing bound thread pools}
 
 As was explained in section~\ref{sec:shortcomings-old-io-manager}, the main
 problem with the old Windows I/O manager is the overhead of maintaining multiple
 pools of bound threads and the associated context switching costs. Getting rid
-of the bound thread pools would probably solve.
+of the bound thread pools would probably make the I/O manager code at least as
+fast as the standard network library, if not faster.
+
+The first reason for implementing the bound thread pool scheme was the limited
+functionality of the \texttt{CancelIo} function: it cannot cancel specific I/O
+operations, and it cannot cancel I/O operations initiated by other OS
+threads. Fortunately, in Windows Vista Microsoft introduced the following
+function that lifts both of those restrictions:
+
+\begin{verbatim}
+    BOOL CancelIoEx(
+      HANDLE       hFile,
+      LPOVERLAPPED lpOverlapped
+    );
+\end{verbatim}
+
+This function is not sensitive to the ID of the calling thread, and the optional
+\texttt{OVERLAPPED} argument that it accepts allows to identify a specific I/O
+operation previously initiated by some thread in the current process. Not
+supporting Windows versions earlier than Vista used to be a concern for some
+time, but it appears that starting with the GHC 8 release pre-Vista versions of
+Windows are no longer supported anyway~\cite{bib:ghc-wiki-windows-ghc}.
+
+The second reason for having a bound thread pool scheme was that all
+asynchronous I/O initiated by a given OS thread is canceled when that thread
+exits. Given that the GHC runtime starts and shuts down native worker threads as
+it pleases, this means that any operation initiated by a Haskell thread can in
+principle be randomly canceled at any moment. Working around that restriction is
+a bit more burdensome. What is needed is a way to prevent the GHC runtime from
+prematurely terminating native worker threads that have pending I/O
+operations. This can be implemented by adding a reference-counting system for
+native worker threads to the runtime system with the following Haskell
+interface:
+
+\begin{verbatim}
+    incrTaskRefCount :: IO (IO ())
+
+    withIncrTaskRefCount :: IO a -> IO a
+\end{verbatim}
+
+The \texttt{incrTaskRefCount} operation increases the reference count for the OS
+thread (or Task in GHC RTS parlance) that the current Haskell thread is running
+on and returns an action that decreases the reference count for that thread when
+run (this is needed because Haskell thread can migrate between Tasks). A Task
+whose reference count is non-zero can never get forcibly shut down by the run
+time system even if the number of Tasks in the HEC worker pool exceeds the
+maximum threshold. To prevent the number of Tasks in the HEC worker pool from
+growing uncontrollably the runtime system tries to shut down the excess Tasks
+whose reference count is zero during the garbage collection phase.
+
+The \texttt{withIncrTaskRefCount} operation is just an exception-safe Haskell
+wrapper for \texttt{incrTaskRefCount}. It increases the reference count of the
+current Task for the duration of the IO action given to it as an argument. It is
+used in the implementation of \texttt{withOverlapped} for managing the reference
+counts of Tasks with pending I/O operations:
+
+\begin{verbatim}
+    withOverlapped = withIncrTaskRefCount $ do
+        [...]
+\end{verbatim}
+
+As discussed in the next chapter, these two optimisations, when implemented,
+actually do make the Windows I/O manager competitive with the standard Haskell
+network library.
 
 \section{Scalable registrations}
 
-TODO
+The remaining features of the new Windows I/O manager design are aimed at
+improving its performance and scalability beyond the current status quo on
+Windows. The implementation status of these optimisations at the time of writing
+is still work in progress. However, it is nevertheless instructive to briefly
+discuss them here. These optimisations are based on the pioneering work in
+the~\cite{bib:voellmy} paper.
+
+The first bottleneck identified in the~\cite{bib:voellmy} paper is the callback
+registration mechanism used by the I/O manager. In the original implementation
+it was just a hash table protected by a mutex; when a large number of Haskell
+threads tried to update that hash table at the same time that caused contention
+and degraded performance. That problem was solved by an additional level of
+indirection: using a small fixed number ($2^5$) of mutex-protected hash tables
+instead of just one, plus a read-only hash table on top. To register a callback
+in this scenario the client first maps the file descriptor it is interested in
+to one of the $2^5$ mutable hash tables using the top-level read-only one, and
+then modifies the appropriate mutable hash table. The I/O manager uses the same
+method to find out which callback to invoke.
+
+This technique should be directly applicable for the Windows I/O manager with a
+modest modification to its internal state structures and the code of
+\texttt{withOverlapped}.
 
 \section{Multiple I/O manager threads}
 
-TODO
+As discussed in the~\cite{bib:voellmy} paper, a single I/O manager thread in a
+highly concurrent server application simply cannot saturate all HECs with work
+beyond 4 cores. This was resolved by parallelising the I/O manager and setting
+the number of I/O manager threads equal to the number of HECs (which is usually
+the same as the number of cores).
 
-\section{A separate timeout manager thread}
+This technique should be also possible to apply in the case of the Windows I/O
+manager. The \texttt{withOverlapped} function will have to be modified to
+register the completion callback with the I/O manager thread associated with the
+current HEC instead of the global one. This optimisation should improve core
+utilisation (by distributing the I/O manager load more evenly across cores) and
+locality (by minimising the need for cross-HEC communication).
 
-TODO
+\section{Avoiding the overhead of blocking calls}
+
+Another optimisation discussed in the~\cite{bib:voellmy} paper is avoiding
+expensive safe foreign calls in the event loop by using a couple of initial fast
+non-blocking unsafe calls to poll for ready events before proceeding with the
+slow blocking call. After each non-blocking poll the I/O manager thread
+voluntarily yields the control to the RTS scheduler, causing the I/O manager
+thread to be moved to the end of the current HEC's run queue. This speeds things
+up in the case where a large number of events is being generated and processed
+by avoiding an expensive context switch incurred by the safe foreign
+call. Voluntary yielding of control, however, increases the latency of timeout
+handling, so that component has to be split into its own Haskell thread.
+
+This optimisation should be directly applicable for the Windows I/O manager as
+well with minimal modifications to the event loop. The timer manager code from
+the Unix version can probably be reused.
+
+Finally, the~\cite{bib:voellmy} paper discusses a technique for working around
+an internal synchronisation bottleneck in the Linux kernel. This optimisation
+seems to be Linux-specific; however, it may provide insight into further
+optimisation of the Windows I/O manager.
 
 \chapter{Experimental Results}
 \label{chap:evaluation}
@@ -689,7 +804,7 @@ TODO
 A prrof of concept version of the design described in the previous chapter was
 implemented and experimentally evaluated using a number of simple
 benchmarks. This chapter discusses the results obtained during the experimental
-evaluation. The new design is shown to be an improvement over the status quo on
+evaluation. The new design is shown to be competitive with the status quo on
 Windows, and thus potentially appropriate for inclusion in GHC in the future.
 
 \textbf{TODO: write this section. Currently I plan to use the same benchmarks as
@@ -891,14 +1006,14 @@ cotidieque, ex facer mediocritatem eam.
 
 \bibitem[O'Sullivan 2010]{bib:o'sullivan}
   \href{http://research.google.com/pubs/pub36841.html}{\emph{Scalable I/O Event Handling for GHC}}\\
-  \newblock Bryan O'Sullivan \& Johan Tibell\\
+  \newblock Bryan O'Sullivan \& Johan Tibell.\\
   \newblock Proceedings of the 2010 ACM SIGPLAN Haskell Symposium (Haskell'10).
 
 \bibitem[Voellmy 2013]{bib:voellmy}
   \href{http://haskell.cs.yale.edu/wp-content/uploads/2013/08/hask035-voellmy.pdf}{\emph{Mio:
       A High-Performance Multicore IO
       Manager for GHC}}\\
-  \newblock Andreas Voellmy et al.\\
+  \newblock Andreas Voellmy, Junchang Wang, Paul Hudak, Kazuhiko Yamamoto.\\
   \newblock Proceedings of the 2013 ACM SIGPLAN symposium on Haskell (Haskell'13).
 
 \bibitem[Marlow 2004]{bib:marlow2004}

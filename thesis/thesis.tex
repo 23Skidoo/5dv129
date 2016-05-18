@@ -29,6 +29,9 @@
 \maketitle
 
 \chapter*{Abstract}
+
+\textbf{TODO: Better thesis title/subtitle?}
+
 % 10-20 lines
 Haskell is a popular functional programming language. GHC is an
 industrial-strength implementation of Haskell that has a number of features
@@ -48,6 +51,8 @@ applications.
 \pagebreak
 
 \chapter*{Acknowledgements}
+
+\textbf{TODO: write.}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -269,11 +274,13 @@ until it's full; if there're multiple threads waiting on a single MVar, only one
 thread is woken up and the remaining ones are served in a fair (FIFO) order.
 
 \section{Foreign Calls}
+\label{sec:foreign-calls}
 
-In the example in the previous section we saw that an input/output operation can
-block a Haskell thread. It is clear, however, that an operation that blocks a
-Haskell thread must not be allowed to block the OS thread that it's executing
-on: otherwise the remaining Haskell threads will never get a chance to run.
+In the example in the previous section it was shown that an input/output
+operation can block a Haskell thread. It is clear, however, that an operation
+that blocks a Haskell thread must not be allowed to block the OS thread that
+it's executing on: otherwise the remaining Haskell threads will never get a
+chance to run.
 
 Safe foreign calls are a mechanism for preventing blocking or long-running calls
 to foreign (usually C) library code issued by a Haskell thread from blocking the
@@ -315,12 +322,12 @@ highly optimised low-level code, but should be handled with care.
 
 The safe foreign call mechanism, while sufficient for relatively infrequent and
 long-running foreign calls, is not performant enough for highly concurrent
-network applications. As we saw in the previous section, using one Haskell
+network applications. As was shown in the previous section, using one Haskell
 thread per connection means that a new OS thread has to be allocated for each
 \texttt{recv} or \texttt{send} foreign call. This is problematic because a high
 number of native threads incurs unacceptable context-switching and memory
-overhead (each native thread requires approx. 1 MiB of memory for the native
-stack and associated structures).
+overhead (each native thread requires approximately 1 MiB of memory for the
+native stack and associated structures).
 
 This problem has been long recognised by the designers of modern operating
 systems. Modern APIs for doing scalable I/O, such as \texttt{kevent} and
@@ -358,8 +365,9 @@ them. Each new connection will trigger an event on the socket listening on the
 server port; this will cause the application to register a fresh socket
 associated with that connection with the \texttt{epoll} object. Once a
 connection socket becomes ready for reading or writing, it will in turn trigger
-new events; and once the application is done with a connection, it will close
-the connection socket and deregister it from the \texttt{epoll} object.
+new events that the application will process; and once the application is done
+with a connection, it will close the connection socket and deregister it from
+the \texttt{epoll} object.
 
 The main advantage of this model is its improved scalability and performance
 compared with using one OS thread per connection; the main disadvantage is that
@@ -379,11 +387,11 @@ Haskell thread, implemented as part of the runtime system, that runs an
 \texttt{epoll}- or \texttt{kevent}-based event loop and notifies all other
 Haskell threads when new I/O events become available. Since the I/O manager
 handles all I/O for all Haskell threads, it can afford to use the safe foreign
-call mechanism for calls to \texttt{epoll\_wait} and other system functions;
+call mechanism for calls to \texttt{epoll\_wait} and related system functions;
 since the I/O manager is a part of the runtime and only exits when the whole
 program shuts down, it doesn't have to worry about asynchronous exceptions
-either\footnote{In fact, as we shall see later, the I/O manager is actually used
-  for \textit{implementing} the timeout mechanism.}. The I/O manager exposes the
+either\footnote{In fact, as will be shown later, the I/O manager is actually
+  used for \textit{implementing} timeouts.}. The I/O manager exposes the
 following semi-public API to Haskell code:
 
 \begin{verbatim}
@@ -409,12 +417,13 @@ been further optimised~\cite{bib:voellmy}, and its performance is currently on
 par with the state of the art in the area.
 
 \section{Bound threads}
+\label{sec:bound-threads}
 
 In addition to normal Haskell threads, GHC runtime also supports a variant
 called bound threads. Those are Haskell threads that have an associated OS
 thread and are guaranteed to only ever be executed in the context of that OS
 thread. This is useful for communicating with foreign libraries that are
-sensitive to the ID of the calling OS thread -- for example, by using
+sensitive to the ID of the calling OS thread -- for example, libraries that use
 thread-local-storage internally. Otherwise, bound threads are just like normal
 Haskell threads, the only difference is that they are created with the
 \texttt{forkOS} operation instead of \texttt{forkIO}.
@@ -422,240 +431,257 @@ Haskell threads, the only difference is that they are created with the
 \chapter{Old Windows I/O Manager}
 \label{chap:old-io-manager}
 
+\textbf{TODO: better title for this chapter.}
+
 GHC on Windows currently lacks an I/O manager~\cite{bib:ticket7353}. All network
 I/O is performed using the safe foreign call mechanism described in the previous
-chapter. Besides performance and scalability problems outlined above, this means
-that \texttt{send} and \texttt{recv} calls cannot be interrupted by asynchronous
-exceptions such as timeouts.
+chapter. Besides the performance and scalability problems outlined above, this
+means that I/O operations such as \texttt{send} and \texttt{recv} cannot be
+interrupted by asynchronous exceptions (e.g. a timeout or a keyboard interrupt).
 
-However, there does exist an abandoned set of patches implementing a Windows I/O
-manager for GHC~\cite{bib:ticket7353}. Work described in this thesis builds on
-that early implementation. This chapter outlines the approach taken during that
-previous attempt and the problems that prevented it from being merged into
-mainline GHC.
+However, there does exist an abandoned set of patches\footnote{Original author:
+  Joseph Adams.} implementing a Windows I/O manager for
+GHC~\cite{bib:ticket7353}. Work described in this thesis builds on that early
+implementation. This chapter outlines the approach taken during that previous
+attempt and the problems that prevented it from being merged into mainline GHC.
 
 \section{I/O completion ports}
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+The main reason that a Windows I/O manager hasn't yet been added to GHC (besides
+the lack of resources) is that the approach chosen by the designers of the
+Windows API for doing scalable event-based I/O is quite different from the one
+used by Unix-like systems (Linux, FreeBSD, OS X/Darwin). As was shown in the
+previous chapter, on Unix a program utilising \texttt{epoll} or \texttt{kevent}
+registers a number of file descriptors with the OS and waits for them to become
+available for reading or writing. However, with the I/O completion ports (or
+IOCP for short), as the Windows API is called, it is the other way around: the
+program starts all its I/O operations \textit{asynchronously}, and waits for
+them to complete.
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+Let's look at the IOCP API in more detail. For the purposes of this discussion,
+it can be boiled down to the following five functions:
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+\begin{verbatim}
+    HANDLE CreateIoCompletionPort(HANDLE    FileHandle,
+      HANDLE    ExistingCompletionPort,
+      ULONG_PTR CompletionKey,
+      DWORD     NumberOfConcurrentThreads
+    );
 
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+    int WSASend(
+      SOCKET                             s,
+      LPWSABUF                           lpBuffers,
+      DWORD                              dwBufferCount,
+      LPDWORD                            lpNumberOfBytesSent,
+      DWORD                              dwFlags,
+      LPWSAOVERLAPPED                    lpOverlapped,
+      LPWSAOVERLAPPED_COMPLETION_ROUTINE lpCompletionRoutine
+    );
 
-\section{Event Loop}
+    BOOL GetQueuedCompletionStatus(
+      HANDLE       CompletionPort,
+      LPDWORD      lpNumberOfBytes,
+      PULONG_PTR   lpCompletionKey,
+      LPOVERLAPPED *lpOverlapped,
+      DWORD        dwMilliseconds
+    );
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+    BOOL WINAPI CancelIo(
+      HANDLE hFile
+    );
+\end{verbatim}
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+An I/O completion port is an abstract OS-level queue object similar to the
+\texttt{epoll} object created by \texttt{epoll\_create}. The IOCP API function
+\texttt{CreateIoCompletionPort} serves the same purpose as
+\texttt{epoll\_create} and \texttt{epoll\_ctl} do for \texttt{epoll}. It is used
+for both creating new I/O completion ports and associating existing ones with
+file descriptors.
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+Asynchronous I/O operations are initiated by standard system functions like
+\texttt{ReadFile} and \texttt{WriteFile}. For this example the \texttt{WSASend}
+function from the Windows Sockets API was chosen because of this thesis's focus
+on network I/O. The arguments \texttt{WSASend} accepts are almost the same ones
+that the \texttt{send} system call accepts on Unix: a socket handle, a buffer
+pointer, the number of bytes in the buffer, an output argument for recording the
+number of bytes actually sent, and a flag word. By default \texttt{WSASend}
+sends some data over a socket, blocking until it is done.
 
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+The \texttt{lpCompletionRoutine} argument can be ignored for the purposes of
+this discussion, leaving only the \texttt{lpOverlapped} argument, which is a
+pointer to an \texttt{OVERLAPPED} structure. The internals of the
+\texttt{OVERLAPPED} structure can be, again, ignored for the purposes of this
+discussion. The important thing is that when this pointer is non-zero and the
+socket has been marked as overlapped during creation, the send operation is
+asynchronous.
 
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+The \texttt{GetQueuedCompletionStatus} function is IOCP's analogue of
+\texttt{epoll\_wait}. It blocks until some I/O operation initiated on one of the
+file descriptors associated with a given I/O completion port actually completes
+and returns some data about the completed operation. The \texttt{dwMilliseconds}
+argument allows to perform a non-blocking poll or block for a limited amount of
+time.
 
-\section{Timeout handling}
+Finally, the \texttt{CancelIo} function cancels all asynchronous I/O operations
+on the given file descriptor initiated by the calling OS thread.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+Additional information on the I/O completion ports API is available in
+Microsoft's official documentation online~\cite{bib:msdn}.
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+\section{Windows Event Loop}
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+As is the case with the GHC I/O manager on Unix, the heart of the unofficial
+Windows GHC I/O manager is the event loop. In simplified form, a single
+iteration of the event loop looks like this:
 
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+\begin{verbatim}
+    step = do
+        runExpiredTimeouts
+        m <- getNextCompletion
+        case m of
+            Nothing                      -> return ()
+            Just (cb, numBytes, errCode) -> cb errCode numBytes
+\end{verbatim}
 
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+Let's ignore \texttt{runExpiredTimeouts} for a moment. As can be seen, the event
+loop is quite simple and mainly involves repeated calls to a Haskell procedure
+\texttt{getNextCompletion}, which is a wrapper over a safe foreign call to
+\texttt{GetQueuedCompletionStatus}. When \texttt{getNextCompletion} returns, it
+either means that some I/O operation has completed or that the time slice
+specified via the \texttt{dwMilliseconds} argument of
+\texttt{GetQueuedCompletionStatus} has been exceeded. In the former case
+\texttt{getNextCompletion} returns a callback associated with the completed
+operation, which is immediately executed.
+
+In addition to taking care of input and output, the unofficial Windows I/O
+manager also handles timeouts. This part is, again, similar to the Unix I/O
+manager, which also has to deal with timeouts\footnote{Discussion of this topic
+  was omitted from the previous chapter in the interests of clarity.}. Timeout
+handling is, again, pretty simple: the internal I/O manager state structure
+contains a priority search queue that records all timeouts currently registered
+in the system. The \texttt{runExpiredTimeouts} operation removes all timeouts
+that expired during the latest time slice from the queue and executes the
+callbacks associated with those expired timeouts.
+
+Just like the standard Unix I/O manager, the unofficial Windows I/O manager
+provides a semi-public interface for implementing synchronous user-level
+wrappers on top of low-level asynchronous I/O operations. As was explained in
+the previous section, the \texttt{threadWaitRead} / \texttt{threadWaitWrite}
+operations can't be efficiently implemented on Windows. Therefore, this
+interface looks a bit differently:
+
+\begin{verbatim}
+    associateHandle :: Manager -> HANDLE -> IO ()
+
+    withOverlapped :: Manager
+                   -> HANDLE
+                   -> StartCallback
+                   -> CompletionCallback a
+                   -> IO a
+
+    type StartCallback = Overlapped -> IO ()
+
+
+    type CompletionCallback a = ErrCode
+                             -> DWORD
+                             -> IO a
+
+\end{verbatim}
+
+Here, the \texttt{Manager} type represents a reference to the internal I/O
+manager state structure that can be obtained via a call to the
+\texttt{getSystemManager} operation. The \texttt{associateHandle} operation
+simply associates a file descriptor with the I/O manager's I/O completion port
+(as explained in the previous section, that file descriptor must be properly set
+up for doing asynchronous I/O).
+
+The \texttt{withOverlapped} operation takes a file descriptor, a callback for
+starting an asynchronous I/O operation, and a callback that should be called on
+completion. It allocates a new \texttt{OVERLAPPED} structure, invokes the start
+callback, creates a new empty MVar, registers the I/O operation with the I/O
+manager and blocks on the MVar it has just created. When the I/O operation
+completes, the I/O manager invokes the completion callback and signals the MVar,
+causing \texttt{withOverlapped} to return control to the caller.
+
+There are two further complications that the Windows I/O manager has to deal
+with: canceling asynchronous I/O operations and sensitivity to the ID of the
+calling thread. When a Haskell thread blocked in \texttt{withOverlapped}
+receives an asynchronous exception, it must cancel the unfinished I/O operation
+it has just initiated. As was shown in the previous section, the
+\texttt{CancelIo} function simply cancels all asynchronous I/O operations on a
+given file descriptor issued by the calling OS thread; this can be problematic
+if two different Haskell threads have initiated I/O operations on the same file
+descriptor from the same OS thread, but only one of the Haskell threads needs to
+be canceled.
+
+Similarly, asynchronous I/O operations in Windows are also sensitive to the ID
+of the calling OS thread. When an OS thread that initiated an asynchronous I/O
+operation exits, that operation is canceled. As was explained in
+section~\ref{sec:foreign-calls}, GHC runtime maintains a fixed-size pool of
+native worker threads that are considered interchangeable for all intents and
+purposes. An OS thread that has at some point initiated an asynchronous I/O
+operation can be simply shut down by the runtime at any moment.
+
+Therefore the unofficial Windows I/O manager enforces the following invariant:
+each file descriptor registered with the I/O manager has an associated pool of
+bound threads (see section~\ref{sec:bound-threads}), and each bound thread in
+the pool can have at most one pending I/O operation per file
+descriptor. However, bound threads can be shared between pools associated with
+different file descriptors. Calls to \texttt{CancelIo} are always issued from
+the same bound thread (and therefore OS thread) that initiated the I/O
+operation. A bound thread that is a part of a pool associated with some file
+descriptor never exits until all pending I/O operations initiated from that
+thread have completed.
 
 \section{Shortcomings of the old I/O Manager}
+\label{sec:shortcomings-old-io-manager}
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+The unofficial Windows I/O manager, as described above, is reasonably complete
+and functional; it even solves the problem of network I/O operations being
+uninterruptible by asynchronous exceptions. However, the overhead of maintaining
+multiple pools of bound threads makes it unsuitable for practical use. A simple
+benchmark measuring the performance effect of enabling the unofficial Windows
+I/O manager by default (two Haskell threads exchanging messages over a socket)
+showed an order of magnitude difference compared with the standard Haskell
+network library (implemented on top of safe foreign calls on Windows).
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+Another problem of the unofficial Windows I/O manager is that one has to add
+support for the \texttt{withOverlapped} interface to all standard Haskell I/O
+libraries in order to actually take advantage of it. This, unfortunately, is a
+fundamental limitation forced by using IOCP; but see
+chapter~\ref{chap:conclusions} for some discussion on this topic.
 
 
 \chapter{New Windows I/O Manager}
 \label{chap:new-io-manager}
 
+\textbf{TODO: better title for this chapter.}
+
 As was shown in the previous chapter, the existing attempt at implementing a
-Windows I/O manager for GHC suffers from a number of problems making it unusable
+Windows I/O manager for GHC suffers from performance problems making it unusable
 in practice and unsuitable for inclusion in mainline GHC. This chapter outlines
 a new I/O manager design that attempts to solve or at least alleviate those
-problems.
+problems. Most ideas discussed in this chapter were originally proposed in
+the~\cite{bib:voellmy} paper.
 
 \section{Removing the context-switching overhead}
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+As was explained in section~\ref{sec:shortcomings-old-io-manager}, the main
+problem with the old Windows I/O manager is the overhead of maintaining multiple
+pools of bound threads and the associated context switching costs. Getting rid
+of the bound thread pools would probably solve.
 
 \section{Scalable registrations}
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+TODO
 
 \section{Multiple I/O manager threads}
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+TODO
 
 \section{A separate timeout manager thread}
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+TODO
 
 \chapter{Experimental Results}
 \label{chap:evaluation}
@@ -668,6 +694,20 @@ Windows, and thus potentially appropriate for inclusion in GHC in the future.
 
 \textbf{TODO: write this section. Currently I plan to use the same benchmarks as
   in the \cite{bib:o'sullivan} paper: pong, file and timeouts.}
+
+\section{Proof of concept implementation}
+
+Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
+signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
+cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
+omnium albucius indoctum mei te. Ne tation debitis vel.
+
+Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
+periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
+urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
+vero congue aliquam, te volutpat iudicabit vel, vel an utamur
+interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
+lorem semper euismod.
 
 \section{Experimental setup}
 
@@ -804,6 +844,14 @@ Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
 vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
 cotidieque, ex facer mediocritatem eam.
 
+% Use GetQueuedCompletionStatusEx
+% Implement the full design
+% Test on a realistic server
+% Add support to the standard network library
+% Make it work on file handles in addition to sockets
+% Code reuse: timeout manager
+% Code reuse: unify threadWaitRead/Write and withOverlapped
+
 
 \addcontentsline{toc}{chapter}{\bibname}
 \begin{thebibliography}{9}
@@ -873,13 +921,19 @@ cotidieque, ex facer mediocritatem eam.
   \newblock \url{https://ghc.haskell.org/trac/ghc/wiki/WindowsGhc}\\
   \newblock URL accessed \today.
 
+\bibitem[MSDN]{bib:msdn} \emph{I/O Completion Ports}\\
+  \newblock Microsoft Developer Network.\\
+  \newblock
+  \url{https://msdn.microsoft.com/en-us/library/windows/desktop/aa365198\%28v=vs.85\%29.aspx}\\
+  \newblock URL accessed \today.
+
 \end{thebibliography}
 
 \appendix
 
 \chapter{Building the source code}
 
-\textbf{Explain how to check out and build the source code on Windows.}
+\textbf{TODO: Explain how to check out and build the source code on Windows.}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu

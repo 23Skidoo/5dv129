@@ -80,18 +80,20 @@ scheduling out of programmer's hands. However, OS-level threads incur too much
 of an overhead in terms of context-switching and fixed memory costs to make them
 practical for high-performance applications; therefore, all modern APIs for
 scalable network I/O are event-based. In the event-based model communication
-with all clients is handled by a just a single thread processing all incoming
-I/O events in an infinite loop.
+with all clients is handled by just a single thread processing all incoming I/O
+events in an infinite loop.
 
 \textit{Haskell threads}, as implemented in GHC, combine the simplicity of the
 thread-based model with the performance of the event-based approach. Haskell
 threads have low memory and context-switching overhead, thus allowing to create
 a large number of them (100K-1M), enough to associate a single thread with each
-connection. A separate I/O manager thread, implemented as part of the runtime
-system, handles all I/O under the hood, providing the Haskell programmer with a
-convenient synchronous API. In the recent releases of GHC the I/O manager has
-been modified to use modern event-based I/O APIs and heavily optimised, making
-it competitive with current state of the art.
+connection. They are multiplexed onto a much smaller number of OS threads,
+usually set equal to the number of CPU cores. A separate I/O manager thread,
+implemented as part of the runtime system, handles all I/O under the hood,
+providing the Haskell programmer with a convenient synchronous API. In the
+recent releases of GHC the I/O manager has been modified to use modern
+event-based I/O APIs and heavily optimised, making it competitive with current
+state of the art.
 
 Sadly, those improvements are available only to GHC users on Unix-like platforms
 due to differences between I/O event models on Windows (I/O completion ports)
@@ -181,83 +183,258 @@ while there is an official Haskell language standard~\cite{bib:haskell2010}, it
 is considered a bit conservative, and therefore a serious production code base
 written in Haskell will most likely utilise a number of GHC-specific extensions.
 
-A lot of extensions.
-
-Compiles to fast native code.
-
 GHC is open source. It is largely written in Haskell itself, though some parts
-relevant for the topic of this work are in C.
+relevant for the topic of this work are in C. It compiles to fast native code --
+side-effect free nature of idiomatic Haskell makes it possible to implement
+advanced code transformation passes not possible in other languages. However,
+the mismatch between the Haskell execution model and the machine model
+translates into Haskell code usually being somewhat slower than C without manual
+optimisation.
 
-GHC is also  support for concurrent and parallel programming.
+A large number of target architectures is supported, though only x86 and x86-64
+are currently Tier 1. Linux, Windows, OS X, and FreeBSD are Tier 1 supported
+target operating systems. An extensive runtime system provides a parallel,
+generational garbage collector, a load-balancing multicore scheduler for Haskell
+threads, and support for profiling, exception handling and other tasks
+associated with running compiled Haskell code.
+
+Besides having an abundance of type system and language extensions and
+state-of-the-art code optimisation capabilities, GHC is also renowned for its
+stellar support for concurrency and parallelism. While a number of different
+models and abstractions for doing parallel and concurrent programming are
+supported~\cite{bib:marlow2013}, the Concurrent Haskell extension is the most
+relevant one for the purposes of this thesis.
 
 \section{Concurrent Haskell}
 
-While GHC Haskell supports a number of different models and abstractions for
-doing parallel and concurrent programming~\cite{bib:marlow2013}, the Concurrent
-Haskell extension is the most relevant one for the purposes of this thesis.
+The Concurrent Haskell programming model revolves around the concept of
+user-level or ``green'' threads: lightweight threads that are multiplexed onto a
+much smaller number of operating system (OS) threads, also called Capabilities
+or Haskell Execution Contexts (HECs) in GHC parlance. The number of HECs is
+usually set to be equal to the number of CPU cores. The lightweight character
+makes it possible to create a large number (100K-1M) of Haskell threads; this
+can be used, for example, to associate a thread with each open connection in a
+network server.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+The following program listing provides an example of a simple server implemented
+in Concurrent Haskell:
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+\begin{verbatim}
+    main :: IO ()
+    main = do
+        listenSock <- socket AF_INET Stream defaultProtocol
+        bind listenSock (SockAddrInet portNumber iNADDR_ANY)
+        forever $ do
+            commSock <- accept listenSock
+            forkIO $ worker commSock
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+    worker :: Socket -> IO ()
+    worker commSock = do
+       inp <- recvAll commSock
+       sendAll commSock inp
 
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+\end{verbatim}
 
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+Here, the \texttt{main} IO action creates a socket and binds it to some port. It
+then starts an infinite loop in which it listens for new connections on that
+socket, and for each new connection forks off a new lightweight worker
+thread. The \texttt{worker} IO action handles all client communication; in this
+example it just echoes all input back to the client. An important detail is that
+all input/output operations are \textit{synchronous}: \texttt{recvAll} and
+\texttt{sendAll} block until all data has been received and sent, respectively.
 
-\section{GHC I/O subsystem}
+In addition to the ability to create new threads, Concurrent Haskell provides a
+number of facilities for inter-thread synchronisation and communication. For the
+purposes of this work it suffices to only look at MVars -- a basic
+synchronisation primitive on top of which more sophisticated structures such as
+channels and semaphores can be built. An MVar is essentially a mutable location
+protected by a mutex; a minimal useful interface for working with MVars looks
+like the following:
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+\begin{verbatim}
+    data MVar a
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+    newEmptyMVar :: IO (MVar a)
+    putMVar      :: MVar a -> a -> IO ()
+    takeMVar     :: MVar a -> IO a
+\end{verbatim}
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+An MVar can be either empty of full. The \texttt{newEmptyVar} operation creates
+a new empty MVar statically constrained to hold values of some type
+\textit{a}. The \texttt{putMVar} operation puts some value of type \textit{a}
+into an empty MVar. Trying to put a value into a non-empty MVar generates an
+exception. The \texttt{takeMVar} operation returns the contents of a given MVar,
+making it empty. If the MVar is empty to start with, \texttt{takeMVar} blocks
+until it's full; if there're multiple threads waiting on a single MVar, only one
+thread is woken up and the remaining ones are served in a fair (FIFO) order.
 
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+\section{Foreign Calls}
 
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+In the example in the previous section we saw that an input/output operation can
+block a Haskell thread. It is clear, however, that an operation that blocks a
+Haskell thread must not be allowed to block the OS thread that it's executing
+on: otherwise the remaining Haskell threads will never get a chance to run.
 
+Safe foreign calls are a mechanism for preventing blocking or long-running calls
+to foreign (usually C) library code issued by a Haskell thread from blocking the
+underlying OS thread. A safe foreign call gets compiled to the following native
+code sequence (using C syntax):
+
+\begin{verbatim}
+    suspendThread();
+    safeForeignCall();
+    resumeThread();
+\end{verbatim}
+
+The \texttt{suspendThread()} and \texttt{resumeThread()} operations are both
+primitives that are part of the GHC runtime system. The \texttt{suspendThread()}
+call removes the current Haskell thread from the HEC's run queue, releases the
+lock associated with the current HEC, wakes up an OS thread from a worker pool
+associated with the current HEC (or creates a new one in case the worker pool is
+empty), and hands off the HEC to that worker thread, which now proceeds with
+executing Haskell code. The actual foreign call is performed in the next step,
+after which the \texttt{resumeThread()} operation puts the current Haskell
+thread back on the HEC's run queue and adds the current worker thread to the
+HEC's worker pool and goes to sleep, or just shuts the worker thread down when
+the HEC's worker pool is full.
+
+One downside of safe foreign calls is that they can't be interrupted by
+asynchronous exceptions (such as timeouts). This can be mitigated by using an
+\textit{interruptible} foreign call (enabled by the \texttt{InterruptibleFFI}
+extension). The runtime system will try to interrupt the thread blocked in such
+a call with an OS-level mechanism (a \texttt{SIGPIPE} signal on Unix systems or
+\texttt{CancelSynchronousIO} on Windows); otherwise they behave like safe ones.
+
+Finally, there are unsafe foreign calls. An unsafe foreign call gets compiled to
+just a simple \texttt{call} instruction, therefore avoiding the runtime
+bookkeeping overhead described above. The downside is that unsafe foreign calls
+are both blocking and uninterruptible. Unsafe foreign calls can be useful in
+highly optimised low-level code, but should be handled with care.
+
+\section{GHC I/O Manager}
+
+The safe foreign call mechanism, while sufficient for relatively infrequent and
+long-running foreign calls, is not performant enough for highly concurrent
+network applications. As we saw in the previous section, using one Haskell
+thread per connection means that a new OS thread has to be allocated for each
+\texttt{recv} or \texttt{send} foreign call. This is problematic because a high
+number of native threads incurs unacceptable context-switching and memory
+overhead (each native thread requires approx. 1 MiB of memory for the native
+stack and associated structures).
+
+This problem has been long recognised by the designers of modern operating
+systems. Modern APIs for doing scalable I/O, such as \texttt{kevent} and
+\texttt{epoll}, use an \textit{event-based} programming model, in which a single
+OS thread can handle multiple concurrent connections. Let's look at the
+interface provided by the Linux \texttt{epoll} mechanism to see what this means
+in practice:
+
+\begin{verbatim}
+    int epoll_create(int size);
+
+    int epoll_ctl(int epfd, int op, int fd,
+                  struct epoll_event *event);
+
+    int epoll_wait(int epfd,
+                   struct epoll_event *events,
+                   int maxevents, int timeout);
+\end{verbatim}
+
+The \texttt{epoll\_create} call creates a new \texttt{epoll} object. The client
+can then associate a number of file descriptors with that object by using the
+\texttt{epoll\_ctl} call. For each file descriptor, the client can choose which
+types of events are watched by the \texttt{epoll} object -- for example, the
+client can choose to wait for the file descriptor to become available for
+reading, writing, or both. Finally, the \texttt{epoll\_wait} call blocks until
+any of the events registered with \texttt{epoll\_ctl} actually happen, and then
+allows to find out which ones did, and for which file descriptors.
+
+A typical network server using this API will use just a single OS thread for
+processing all incoming events. During the setup phase the application will
+create a socket for listening on some port, register it with the \texttt{epoll}
+object, and enter an infinite \textit{event loop}, in which it will alternate
+between waiting for new events with \texttt{epoll\_wait} and processing
+them. Each new connection will trigger an event on the socket listening on the
+server port; this will cause the application to register a fresh socket
+associated with that connection with the \texttt{epoll} object. Once a
+connection socket becomes ready for reading or writing, it will in turn trigger
+new events; and once the application is done with a connection, it will close
+the connection socket and deregister it from the \texttt{epoll} object.
+
+The main advantage of this model is its improved scalability and performance
+compared with using one OS thread per connection; the main disadvantage is that
+it is much less convenient to program with. Using one thread per connection lets
+the programmer express her intent in a modular way, simplifies exception
+handling and resource management (all resources dedicated to a single connection
+can be freed when the associated thread exits), and makes it easier to prevent
+CPU-intensive code processing a single request from starving other request
+handlers of CPU time (since control over preemption is taken out of the
+programmer's hands).
+
+Happily, modern versions of GHC allow to combine the performance of the
+event-based model with the convenience of the thread-based one. This is achieved
+by the runtime system component called the \textit{I/O
+  manager}~\cite{bib:o'sullivan}. Simply put, the I/O manager is just another
+Haskell thread, implemented as part of the runtime system, that runs an
+\texttt{epoll}- or \texttt{kevent}-based event loop and notifies all other
+Haskell threads when new I/O events become available. Since the I/O manager
+handles all I/O for all Haskell threads, it can afford to use the safe foreign
+call mechanism for calls to \texttt{epoll\_wait} and other system functions;
+since the I/O manager is a part of the runtime and only exits when the whole
+program shuts down, it doesn't have to worry about asynchronous exceptions
+either\footnote{In fact, as we shall see later, the I/O manager is actually used
+  for \textit{implementing} the timeout mechanism.}. The I/O manager exposes the
+following semi-public API to Haskell code:
+
+\begin{verbatim}
+    threadWaitRead  :: Fd -> IO ()
+    threadWaitWrite :: Fd -> IO ()
+\end{verbatim}
+
+A \texttt{threadWaitWrite} call creates an empty MVar, registers the provided
+file descriptor with the I/O manager, and blocks on that MVar. Once that file
+descriptor becomes ready for writing, the I/O manager runs the callback provided
+by \texttt{threadWaitWrite}, which fills in that MVar, waking the Haskell thread
+blocked in \texttt{threadWaitWrite}. The Haskell thread can then proceed with
+writing to that file descriptor. The \texttt{threadWaitRead} call works in the
+same way, the only difference is that blocks until a file descriptor becomes
+ready for reading instead of writing.
+
+Libraries for doing network I/O in Haskell are written to cooperate with this
+API, exposing the familiar synchronous \texttt{send}/\texttt{recv}-style
+interface to the programmer. Thus the context-switching and memory overhead
+associated with using one OS thread per connection is avoided in the GHC
+implementation of Concurrent Haskell. In recent GHC versions the I/O manager has
+been further optimised~\cite{bib:voellmy}, and its performance is currently on
+par with the state of the art in the area.
+
+\section{Bound threads}
+
+In addition to normal Haskell threads, GHC runtime also supports a variant
+called bound threads. Those are Haskell threads that have an associated OS
+thread and are guaranteed to only ever be executed in the context of that OS
+thread. This is useful for communicating with foreign libraries that are
+sensitive to the ID of the calling OS thread -- for example, by using
+thread-local-storage internally. Otherwise, bound threads are just like normal
+Haskell threads, the only difference is that they are created with the
+\texttt{forkOS} operation instead of \texttt{forkIO}.
 
 \chapter{Old Windows I/O Manager}
 \label{chap:old-io-manager}
 
-\textbf{Description of the previous attempt at implementing a Windows I/O
-  Manager. TODO: Better title for the chapter.}
+GHC on Windows currently lacks an I/O manager~\cite{bib:ticket7353}. All network
+I/O is performed using the safe foreign call mechanism described in the previous
+chapter. Besides performance and scalability problems outlined above, this means
+that \texttt{send} and \texttt{recv} calls cannot be interrupted by asynchronous
+exceptions such as timeouts.
+
+However, there does exist an abandoned set of patches implementing a Windows I/O
+manager for GHC~\cite{bib:ticket7353}. Work described in this thesis builds on
+that early implementation. This chapter outlines the approach taken during that
+previous attempt and the problems that prevented it from being merged into
+mainline GHC.
+
+\section{I/O completion ports}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -268,8 +445,19 @@ Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
 vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
 cotidieque, ex facer mediocritatem eam.
 
+Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
+signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
+cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
+omnium albucius indoctum mei te. Ne tation debitis vel.
 
-\section{A Section}
+Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
+periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
+urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
+vero congue aliquam, te volutpat iudicabit vel, vel an utamur
+interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
+lorem semper euismod.
+
+\section{Event Loop}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -347,20 +535,13 @@ omnium albucius indoctum mei te. Ne tation debitis vel.
 \chapter{New Windows I/O Manager}
 \label{chap:new-io-manager}
 
-\textbf{Description of my design for the new I/O Manager and implemented
-  improvements.}
+As was shown in the previous chapter, the existing attempt at implementing a
+Windows I/O manager for GHC suffers from a number of problems making it unusable
+in practice and unsuitable for inclusion in mainline GHC. This chapter outlines
+a new I/O manager design that attempts to solve or at least alleviate those
+problems.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-
-\section{A Section}
+\section{Removing the context-switching overhead}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -389,7 +570,65 @@ detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
 graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
 delicata has.
 
-\section{Another Section}
+\section{Scalable registrations}
+
+Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
+an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
+vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
+inciderint. Eleifend salutatus vix ad.
+
+Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
+vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
+cotidieque, ex facer mediocritatem eam.
+
+Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
+signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
+cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
+omnium albucius indoctum mei te. Ne tation debitis vel.
+
+Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
+periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
+urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
+vero congue aliquam, te volutpat iudicabit vel, vel an utamur
+interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
+lorem semper euismod.
+
+Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
+eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
+detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
+graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
+delicata has.
+
+\section{Multiple I/O manager threads}
+
+Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
+an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
+vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
+inciderint. Eleifend salutatus vix ad.
+
+Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
+vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
+cotidieque, ex facer mediocritatem eam.
+
+Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
+signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
+cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
+omnium albucius indoctum mei te. Ne tation debitis vel.
+
+Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
+periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
+urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
+vero congue aliquam, te volutpat iudicabit vel, vel an utamur
+interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
+lorem semper euismod.
+
+Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
+eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
+detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
+graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
+delicata has.
+
+\section{A separate timeout manager thread}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -421,18 +660,28 @@ delicata has.
 \chapter{Experimental Results}
 \label{chap:evaluation}
 
-\textbf{Benchmarks: comparison of the new I/O manager with old code and the
-  current implementation in GHC 8. Currently I plan to use the same benchmarks
-  as in the~\cite{bib:o'sullivan} paper: pong, file and timeouts.}
+A prrof of concept version of the design described in the previous chapter was
+implemented and experimentally evaluated using a number of simple
+benchmarks. This chapter discusses the results obtained during the experimental
+evaluation. The new design is shown to be an improvement over the status quo on
+Windows, and thus potentially appropriate for inclusion in GHC in the future.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+\textbf{TODO: write this section. Currently I plan to use the same benchmarks as
+  in the \cite{bib:o'sullivan} paper: pong, file and timeouts.}
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+\section{Experimental setup}
+
+Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
+signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
+cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
+omnium albucius indoctum mei te. Ne tation debitis vel.
+
+Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
+periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
+urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
+vero congue aliquam, te volutpat iudicabit vel, vel an utamur
+interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
+lorem semper euismod.
 
 \section{Benchmark 1: pong}
 
@@ -494,7 +743,7 @@ detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
 graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
 delicata has.
 
-\section{Benchmarks: summary}
+\section{Summary}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -509,8 +758,8 @@ cotidieque, ex facer mediocritatem eam.
 \chapter{Related Work}
 \label{chap:related-work}
 
-\textbf{A review of literature with pointers to related papers and similar work
-  done for systems other than GHC.}
+\textbf{TODO: A review of literature with pointers to related papers and similar
+  work done for systems other than GHC (for example, Go). }
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
@@ -543,8 +792,8 @@ delicata has.
 \chapter{Conclusions and Future Work}
 \label{chap:conclusions}
 
-\textbf{This section will contain some final words and reflections about
-  possible future directions.}
+\textbf{TODO: some final words and reflections about possible future
+  directions.}
 
 Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
 an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu

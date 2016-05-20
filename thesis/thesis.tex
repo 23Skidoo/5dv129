@@ -16,7 +16,7 @@
 \subtitle{Or, How to Make Haskell Networking Fast on Windows}
 \author{Mikhail Glushenkov}
 \supervisor{Jerry Eriksson}
-\examiner{Someone Someone}
+\examiner{Suna Bensch}
 \semester{Spring 2016}
 \course{Bachelor's thesis, 15 credits}
 %\education{}
@@ -798,116 +798,60 @@ an internal synchronisation bottleneck in the Linux kernel. This optimisation
 seems to be Linux-specific; however, it may provide insight into further
 optimisation of the Windows I/O manager.
 
-\chapter{Experimental Results}
+\chapter{Empirical Results}
 \label{chap:evaluation}
 
 A prrof of concept version of the design described in the previous chapter was
 implemented and experimentally evaluated using a number of simple
 benchmarks. This chapter discusses the results obtained during the experimental
 evaluation. The new design is shown to be competitive with the status quo on
-Windows, and thus potentially appropriate for inclusion in GHC in the future.
-
-\textbf{TODO: write this section. Currently I plan to use the same benchmarks as
-  in the \cite{bib:o'sullivan} paper: pong, file and timeouts.}
-
-\section{Proof of concept implementation}
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+Windows, and thus potentially appropriate for inclusion in GHC at some point in
+the future.
 
 \section{Experimental setup}
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+The benchmarks were run on a Windows machine with a 3.4 GHz four-core processor
+and 16 GiB of RAM. The same machine was used as both client and
+server. ApacheBench was used to test the network I/O performance. The numbers
+reported are an average over five runs for each value of the input
+parameter. Appendix~\ref{appendix:building} contains instructions for
+replicating the experiment.
 
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+\section{Benchmark 1: PongServer}
 
-\section{Benchmark 1: pong}
+The PongServer benchmark implements a simple HTTP server that sends a response
+with a constant five-byte body (``Pong!'') in answer to any HTTP request. The
+\texttt{pong} version of the server is implemented using the new I/O manager
+prototype, and the \texttt{pong-baseline} version is implemented using the
+standard Haskell network library.
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
+The following table shows the number of requests per second as reported by
+ApacheBench as a function of the number of connections (ApacheBench's
+\texttt{-c} option):
 
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
+\begin{center}
+\begin{tabular}{ | l | l | l | }
+  \hline
+  Connections & \texttt{pong} & \texttt{pong-baseline} \\
+  \hline
+  10 & 10944 & 9781 \\
+  \hline
+  100 & 10694 & 8984 \\
+  \hline
+  1000 & 8761 & 8458 \\
+  \hline
+  10000 & 3497 & 3795 \\
+  \hline
+\end{tabular}
+\end{center}
 
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
+As can be seen above, code using the new I/O manager is competitive with code
+that uses the standard network library on this benchmark.
 
-\section{Benchmark 2: file}
+\section{More benchmarks}
 
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
-
-\section{Benchmark 3: timeouts}
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
-
-\section{Summary}
-
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+\textbf{TODO: add more/better benchmarks. Add latency numbers. Add the remaining
+  benchmarks from the \cite{bib:o'sullivan} paper: file and timeouts.}
 
 
 \chapter{Related Work}
@@ -947,26 +891,37 @@ delicata has.
 \chapter{Conclusions and Future Work}
 \label{chap:conclusions}
 
-\textbf{TODO: some final words and reflections about possible future
-  directions.}
+A new design for the Windows I/O manager for GHC was presented, and its proof of
+concept implementation was shown to be an improvement over the status quo when
+it comes to correctness and competitive when it comes to performance. However, a
+number of issues still need to be resolved before the current implementation can
+be declared production-ready.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+First, support for the new Windows I/O manager must be integrated with the
+standard network library so that existing Haskell applications could take
+advantage of it. There are some bits and pieces missing from the GHC RTS's
+low-level I/O device abstraction that need to be implemented first.
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+Second, the new Windows I/O manager code must be extended to also handle file
+I/O in addition to network I/O. This will likely require extensive changes to
+the GHC runtime support library to make it use native Windows API types and
+functions instead of the CRT wrapper.
 
-% Use GetQueuedCompletionStatusEx
-% Implement the full design
-% Test on a realistic server
-% Add support to the standard network library
-% Make it work on file handles in addition to sockets
-% Code reuse: timeout manager
-% Code reuse: unify threadWaitRead/Write and withOverlapped
+Additionally, performance of the current implementation could be
+improved. Besides implementing the full design described in
+chapter~\ref{chap:new-io-manager}, there are also some low-hanging fruit like
+using the more efficient \texttt{GetQueuedCompletionStatusEx} API instead of
+\texttt{GetQueuedCompletionStatus} and getting rid of \texttt{StablePtr}s in
+favour of \texttt{ForeignPtr}s. If the full design were to be implemented,
+testing its performance would require a more advanced setup akin to the one
+described in~\cite{bib:voellmy} to saturate the network.
 
+Finally, it'd be nice to share more code among the Windows and Unix I/O manager
+implementations.  It should be possible to come up with an API that combines
+\texttt{threadWaitRead} / \texttt{threadWaitWrite} and \texttt{withOverlapped}
+by implementing an IOCP-style interface on top of
+\texttt{epoll}/\texttt{kqueue}. The timeout manager code can probably be reused
+wholesale.
 
 \addcontentsline{toc}{chapter}{\bibname}
 \begin{thebibliography}{9}
@@ -1047,16 +1002,39 @@ cotidieque, ex facer mediocritatem eam.
 \appendix
 
 \chapter{Building the source code}
+\label{appendix:building}
 
-\textbf{TODO: Explain how to check out and build the source code on Windows.}
+Source code for the proof of concept implementation described in this thesis is
+available on GitHub at \url{https://github.com/23Skidoo/haskell-iocp/}. Building
+the code requires a patched version of GHC, which is available at
+\url{https://github.com/23Skidoo/ghc}.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
+Follow these steps to build the source code:
 
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+\begin{itemize}
+\item Clone the Git repository with patched GHC from
+  \url{https://github.com/23Skidoo/ghc}.
+\item Switch to the \texttt{ghc-8.0-max-spare-workers} branch.
+\item Follow the instructions on GHC
+  Wiki\footnote{\url{https://ghc.haskell.org/trac/ghc/wiki/Building}} to build
+  GHC from source.
+\item Make sure that you have \texttt{cabal-install} installed. A Windows binary
+  can be downloaded from \url{https://www.haskell.org/cabal/download.html}. Make
+  sure that the \texttt{cabal} tool is in \texttt{PATH}.
+\item Clone the \texttt{haskell-iocp} Git repository from
+  \url{https://github.com/23Skidoo/ghc}.
+\item Run \texttt{cabal sandbox init}.
+\item Run \texttt{cabal install -w c:/path/to/patched/ghc/inplace/bin/ghc-stage2.exe
+    -{}-only-dependencies}.
+\item Run \texttt{cabal configure -w c:/path/to/patched/ghc/inplace/bin/ghc-stage2.exe}.
+\item Run \texttt{cabal build}.
+\end{itemize}
+
+This will build the I/O manager library and a number of benchmarks and test
+programs. To run the test programs, use \texttt{cabal run}. For example,
+\texttt{cabal run pong} starts the Pong HTTP server. Use ApacheBench or
+\texttt{httpperf} for performance tests. Example invocation of ApacheBench:
+\texttt{ab -n 10000 -c 100 http://127.0.0.1:8080/}. This makes ApacheBench send
+ten thousand requests using one hundred simultaneous connections.
 
 \end{document}

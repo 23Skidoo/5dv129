@@ -1,0 +1,367 @@
+\documentclass{beamer}
+
+\mode<presentation>
+{
+  \usetheme{Warsaw}
+  %\usecolortheme{seahorse}
+  % or ...
+
+  \setbeamercovered{transparent}
+  % or whatever (possibly just delete it)
+}
+
+
+\usepackage[english]{babel}
+% or whatever
+
+\usepackage[latin1]{inputenc}
+% or whatever
+
+\usepackage{amssymb}
+\usepackage{times}
+%\usepackage[T1]{fontenc}
+% Or whatever. Note that the encoding and the font should match. If T1
+% does not look nice, try deleting the line with the fontenc.
+
+
+\title{A Cross-Platform Scalable I/O Manager for GHC}
+
+\author{Mikhail~Glushenkov}
+
+\date{\today}
+
+\subject{A Cross-Platform Scalable I/O Manager for GHC}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Summary}
+  \emph{Main idea:} Make it possible to program network server applications in
+  Haskell that work on Windows and support a large number of concurrent
+  connections.
+\end{frame}
+
+\begin{frame}{Outline}
+  \tableofcontents
+  % You might wish to add the option [pausesections]
+\end{frame}
+
+\section {Background}
+
+\begin{frame}{Haskell}
+  \begin{itemize}
+  \item A popular functional language.
+  \item Powerful static type system.
+  \item Focus on immutability.
+  \item Lazy (call-by-need).
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{GHC}
+  \begin{itemize}
+  \item The Glasgow Haskell Compiler.
+  \item An industrial-strength implementation of Haskell.
+  \item A lot of extensions.
+  \item Compiles to fast native code.
+  \item \emph{Open source}.
+  \item \emph{Great support for concurrency}.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Concurrent Haskell}
+  \begin{itemize}
+  \item ``Green threads''.
+  \item Multiplexed on a small number of OS threads.
+  \item Lightweight: low memory/task switching cost.
+  \item Easy to create a large number of threads.
+  \item ``Large'' as in 100K-1M.
+  \item Supports multicore.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Code Example}
+\begin{verbatim}
+    main = do
+        listenSock <- startListenSock
+        forever $ do
+            sock <- accept listenSock
+            forkIO $ worker sock
+
+    worker sock = do
+       -- Do some I/O ...
+       send sock "question"
+       answer <- recv sock
+\end{verbatim}
+\end{frame}
+
+\begin{frame}{The Problem of I/O}
+  \begin{itemize}
+  \item An I/O call should only block the Haskell thread.
+  \item \textbf{Not} the underlying OS thread.
+  \item I/O should also scale well.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Solution: I/O Manager}
+  \begin{itemize}
+  \item Part of the runtime support system.
+  \item A dedicated thread for handling I/O.
+  \item Uses a high-performance event-based I/O API (\texttt{epoll}/\texttt{kqueue}).
+  \item Basically, an event processing loop.
+  \item Heavily optimised, see the Mio paper.
+  \item Scales to a large number of cores.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Problem: Windows support}
+  \begin{itemize}
+  \item No I/O manager on Windows.
+  \item I/O uses safe FFI calls.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Safe foreign calls}
+  \begin{itemize}
+  \item A foreign call that runs in its own OS thread.
+  \item Does not block other Haskell threads.
+  \item More overhead.
+  \item Separate OS thread for each concurrent I/O call.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]{Code Example}
+  Non-interruptible:
+\begin{verbatim}
+  timeout 5000000 $ connectTo "google.com"
+                    (PortNumber 1234)
+\end{verbatim}
+  \begin{itemize}
+  \item On Linux: timeout exception.
+  \item On Windows: hangs.
+  \end{itemize}
+\end{frame}
+
+\section {New I/O Manager Design}
+
+\begin{frame}{\texttt{epoll} vs. IOCP}
+  \begin{itemize}
+  \item \texttt{epoll}: Linux API for scalable I/O.
+  \item Wait for all descriptors to become ready and then start doing I/O.
+  \item IOCP: Windows API for scalable I/O.
+  \item Inititate all I/O requests asynchronously and wait for completion.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Haskell interface to Unix I/O manager}
+\begin{itemize}
+    \item \texttt{threadWaitRead  :: Fd -> IO ()}
+    \item \texttt{threadWaitWrite :: Fd -> IO ()}
+\end{itemize}
+Blocks until the file descriptor becomes ready.
+
+Used in the standard library to implement \texttt{send}/\texttt{recv} et al.
+\end{frame}
+
+\begin{frame}[fragile]{Haskell interface to Windows I/O manager}
+\begin{verbatim}
+withOverlapped  :: HANDLE -> StartCallback
+                -> CompletionCallback -> IO ()
+
+type StartCallback  :: LPOVERLAPPED -> IO ()
+
+type CompletionCallback  :: ErrCode -> DWORD -> IO ()
+\end{verbatim}
+  Initiates the I/O with \texttt{StartCallback}, blocks until the completion
+  arrives, calls \texttt{CompletionCallback}.
+
+  Problem: the standard library must be rewritten.
+\end{frame}
+
+\begin{frame}{Prior Art}
+\begin{itemize}
+    \item Existing attempt at Windows I/O manager:
+    \item \url{https://ghc.haskell.org/trac/ghc/ticket/7353}
+    \item \url{https://github.com/joeyadams/haskell-iocp}
+    \item Incomplete and slower than the status quo.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{New Design}
+\begin{itemize}
+    \item Builds upon the previous attempt.
+    \item Adds a number of optimisations.
+    \item Removes support for Windows XP.
+    \item Ideas from the Mio paper.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Bound thread pool}
+  \begin{itemize}
+    \item Made everything slower.
+    \item Only needed to support Windows XP.
+    \item Solution: remove.
+    \item Use \texttt{CancelIOEx}.
+    \item Use reference-counting for keeping OS threads with pending I/O alive.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{GetQueuedCompletionStatusEx}
+  \begin{itemize}
+    \item Removes multiple completions with a single system call.
+    \item Less overhead.
+    \item Again, Windows Vista+ only.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Scalable registrations}
+\begin{itemize}
+  \item Old design used stable pointers.
+  \item Problem: global lock.
+  \item New design uses a two-level hash table.
+  \item Locking only needed for the second level.
+  \item Idea from the Mio paper.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Separate timeout manager thread}
+  \begin{itemize}
+    \item (WIP)
+    \item Makes the I/O manager thread more responsive.
+    \item Can avoid safe foreign calls to \texttt{GetQueuedCompletionStatusEx}.
+    \item Idea from the Mio paper.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Per-core I/O manager threads}
+  \begin{itemize}
+    \item (WIP)
+    \item Lets us scale to a large number of cores.
+    \item Idea from the Mio paper.
+\end{itemize}
+\end{frame}
+
+\section {Evaluation (Benchmarks)}
+
+\begin{frame}{PongServer: Throughput}
+  10K requests, requests per second:
+\begin{tabular}{ | l | l | l | }
+  \hline
+  Connections & \texttt{pong} & \texttt{pong-baseline} \\
+  \hline
+  10 & 10700 & 10500 \\
+  \hline
+  100 & 10700 & 10200 \\
+  \hline
+  1000 & 8400 & 8500 \\
+  \hline
+  10000 & 5300 & 5200 \\
+  \hline
+\end{tabular}
+\end{frame}
+
+\begin{frame}{PongServer: Latency}
+  10K requests, processing time per request (ms):
+\begin{tabular}{ | l | l | l | }
+  \hline
+  Connections & \texttt{pong} & \texttt{pong-baseline} \\
+  \hline
+  10 &  0.93 &  0.94 \\
+  \hline
+  100 &  9.0 &  9.8 \\
+  \hline
+  1000 & 120.1 & 115.7 \\
+  \hline
+  10000 & 1800 & 1900 \\
+  \hline
+\end{tabular}
+\end{frame}
+
+\begin{frame}{FileServer: Throughput}
+  10K requests, requests per second:
+\begin{tabular}{ | l | l | l | }
+  \hline
+  Connections & \texttt{file} & \texttt{file-baseline} \\
+  \hline
+  10 & 5600 & 9200 \\
+  \hline
+  100 & 5700 & 8800 \\
+  \hline
+  1000 & 1250 & 5500 \\
+  \hline
+  10000 & 560 & 1400 \\
+  \hline
+\end{tabular}
+\end{frame}
+
+\section {Conclusions \& Future Work}
+
+\begin{frame}{Current Status}
+  \begin{itemize}
+  \item Only a proof of concept.
+  \item Competitive performance (with socket I/O).
+  \item Improved correctness.
+  \item Only supports socket I/O (no file I/O).
+  \item Not fully integrated with GHC.
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Future Work}
+  \begin{itemize}
+  \item A separate timeout manager thread.
+  \item Per-core I/O manager threads.
+  \item More benchmarks.
+  \item Support for file I/O.
+  \item Propose for inclusion in GHC.
+  \end{itemize}
+\end{frame}
+
+\section {Further Reading}
+
+\begin{frame}{Further Reading: }
+  \begin{itemize}
+  \item Thesis draft and these slides are available on GitHub:
+  \item \url{https://github.com/23Skidoo/5dv129}
+  \item As well as the implementation:
+  \item \url{https://github.com/23Skidoo/haskell-iocp}
+  \item \url{https://github.com/23Skidoo/ghc} (the
+    \texttt{ghc-8.0-max-spare-workers} branch)
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Further Reading: GHC I/O Manager}
+  \begin{itemize}
+  \item \href{http://research.google.com/pubs/pub36841.html}{\emph{Scalable I/O Event Handling for GHC}}\\
+    Bryan O'Sullivan \& Johan Tibell\\
+  \item \href{http://haskell.cs.yale.edu/wp-content/uploads/2013/08/hask035-voellmy.pdf}{\emph{Mio:
+        A High-Performance Multicore IO
+        Manager for GHC}}\\
+    Andreas Voellmy et al.\\
+  \item \emph{GHC Trac issue \#7353}\\
+    \url{https://ghc.haskell.org/trac/ghc/ticket/7353}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Further Reading: Background}
+  On the programming model:
+  \begin{itemize}
+  \item
+    \emph{Parallel and Concurrent Programming in Haskell} (O'Reilly book)\\
+    by Simon Marlow
+  \end{itemize}
+  On the runtime system:
+  \begin{itemize}
+  \item
+    \href{http://community.haskell.org/~simonmar/papers/multicore-ghc.pdf}{\emph{Runtime
+    Support for Multicore Haskell}}\\
+    Simon Marlow, Simon Peyton Jones, Satnam Singh.
+  \item
+    \href{http://community.haskell.org/~simonmar/papers/conc-ffi.pdf}{\emph{Extending
+    the Haskell Foreign Function Interface with Concurrency}}\\
+    Simon Marlow, Simon Peyton Jones, Wolfgang Thaller
+  \end{itemize}
+\end{frame}
+
+\end{document}

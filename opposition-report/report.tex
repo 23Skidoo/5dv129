@@ -1,0 +1,96 @@
+\documentclass[10pt, oneside]{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{enumerate}
+\usepackage{titling}
+\usepackage[nottoc, notlof]{tocbibind}
+\usepackage[pdftex]{graphicx}
+\usepackage[kerning,spacing]{microtype}
+\usepackage{verbatim}
+\usepackage{color}
+\usepackage{listings}
+
+\usepackage[bookmarksnumbered, unicode, pdftex]{hyperref}
+
+\author{Mikhail Glushenkov, \texttt{<c05mgv@cs.umu.se>}}
+
+\title{A Cross-Platform Scalable I/O Manager for GHC}
+
+\newcommand{\unit}[1]{\ensuremath{\, \mathrm{#1}}}
+
+% % i Sverige har vi normalt inget indrag vid nytt stycke
+\setlength{\parindent}{0pt}
+% % men däremot lite mellanrum
+\setlength{\parskip}{10pt}
+
+\begin{document}
+\pagestyle{empty}
+
+\section*{Opposition Report}
+
+\textbf{Thesis author:} Stefan Lindström\\
+\textbf{Thesis topic:} Generation of test persons for the Swedish Tax Agency's
+Population Registry -- An application of Context Free Grammar\\
+\textbf{Main reviewer:} Mikhail Glushenkov\\
+\textbf{Auxiliary reviewers:} Andreas Günzel, Jon Leijon\\
+\textbf{Supervisor:} Suna Bensch\\
+\textbf{Examiner:} Lars-Erik Janlert\\
+
+All reviewers were in agreement that the thesis was overall solid, well written,
+easy to follow, and reasonably complete. Discussion was initially focused on
+high-level issues, after which the evaluation criteria were dealt with
+point-by-point; the review was concluded with a discussion of various minor
+issues.
+
+Reviewers agreed that the main problem with the thesis was that the choice of
+method (Context Free Grammars) wasn't sufficiently well motivated. It'd be nice
+to see an analysis of requirements, such as who will be using the system, the
+level of skill of potential users, the kinds of tasks that the users will need
+to perform and so on. These requirements could then be used to evaluate the
+solution that the author came up with.
+
+Another element that the reviewers felt was missing from the thesis was an
+overview of related work. Since the topic of the thesis is basically generation
+of random well-formed XML documents, it would be useful and informative to see
+an overview of existing work in this area. Additionally, alternative methods
+could be explored, like using regular grammars instead of CFGs and using XML
+Schema languages in some way.
+
+When it comes to the ``Future Work'' section, the reviewers again felt that a
+lack of clearly expressed usability and maintainability requirements undermined
+the author's efforts. Since the production version of the system will most
+likely need to be tweaked and modified by the users, it would be nice to see a
+discussion of how these tasks could be made easier -- for example, by making the
+rules more modular and/or hiding the complexity behind some kind of a high-level
+domain-specific language.
+
+One reviewer noted that the proposed solutions (RPCGs and RCGs) weren't
+explained very well and that section could do well with an example; however,
+another reviewer disagreed and said that the section was very clear in its
+current state.
+
+One other issue was that the status of implementation was a bit unclear from the
+thesis; reviewers agreed that the implementation section was somewhat laconic
+and could be expanded. For example, it'd be interesting to read more about the
+kinds of problems the author had with implementing the system in Prolog and why
+exactly that attempt wasn't successful.
+
+The review then continued with going through the list of evaluation
+criteria. Reviewers reiterated that the author did a good job, especially
+lauding the background section when discussing the thesis's connection to
+computer science. Reviewers agreed that the thesis was very readable and
+well-structured, and that the result was presented well -- even though the
+result is mostly negative, a negative result is still a result. It was again
+noted that the choice of method wasn't very strongly motivated. One other point
+that was raised was that the discussion of user privacy aspects could be
+expanded a little.
+
+Finally, minor issues like spelling, grammar, and word choice were dealt
+with. One suggestion was to make the presentation of the context-free grammar in
+the appendix more concise by using alternation symbols to abbreviate multiple
+rules.
+
+\end{document}

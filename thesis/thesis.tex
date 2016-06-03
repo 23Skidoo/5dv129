@@ -618,14 +618,14 @@ be canceled.
 Similarly, asynchronous I/O operations in Windows are also sensitive to the ID
 of the calling OS thread. When an OS thread that initiated an asynchronous I/O
 operation exits, that operation is canceled. As was explained in
-section~\ref{sec:foreign-calls}, GHC runtime maintains a fixed-size pool of
+Section~\ref{sec:foreign-calls}, GHC runtime maintains a fixed-size pool of
 native worker threads that are considered interchangeable for all intents and
 purposes. An OS thread that has at some point initiated an asynchronous I/O
 operation can be simply shut down by the runtime at any moment.
 
 Therefore the unofficial Windows I/O manager enforces the following invariant:
 each file descriptor registered with the I/O manager has an associated pool of
-bound threads (see section~\ref{sec:bound-threads}), and each bound thread in
+bound threads (see Section~\ref{sec:bound-threads}), and each bound thread in
 the pool can have at most one pending I/O operation per file
 descriptor. However, bound threads can be shared between pools associated with
 different file descriptors. Calls to \texttt{CancelIo} are always issued from
@@ -668,7 +668,7 @@ design is the focus of the next chapter.
 
 \section{Removing bound thread pools}
 
-As was explained in section~\ref{sec:shortcomings-old-io-manager}, the main
+As was explained in Section~\ref{sec:shortcomings-old-io-manager}, the main
 problem with the old Windows I/O manager is the overhead of maintaining multiple
 pools of bound threads and the associated context switching costs. Getting rid
 of the bound thread pools would probably make the I/O manager code at least as

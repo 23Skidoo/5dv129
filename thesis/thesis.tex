@@ -13,7 +13,7 @@
 \renewcommand{\cftchapleader}{\cftdotfill{\cftdotsep}}
 
 \title{A Cross-Platform Scalable I/O Manager for GHC}
-\subtitle{Or, How to Make Haskell Networking Fast on Windows}
+\subtitle{Improving Haskell Networking on Windows}
 \author{Mikhail Glushenkov}
 \supervisor{Jerry Eriksson}
 \examiner{Suna Bensch}
@@ -29,8 +29,6 @@
 \maketitle
 
 \chapter*{Abstract}
-
-\textbf{TODO: Better thesis title/subtitle?}
 
 % 10-20 lines
 Haskell is a popular functional programming language. GHC is an
@@ -52,18 +50,17 @@ applications.
 
 \chapter*{Acknowledgements}
 
-\textbf{TODO: write.}
+This thesis builds upon the work performed by many different people over the
+years. Johan Tibell and Bryan O'Sullivan implemented the initial version of the
+GHC I/O manager for Unix. Andreas Voellmy and coauthors optimised and improved
+the design of the I/O manager in many respects. Felix Martini wrote the
+\texttt{winio} package for working with Windows asynchronous I/O in
+Haskell. Joseph Adams is the author of the first version of Windows I/O manager.
 
-% Felix Martini
+I'd also like to express my gratitude to my thesis advisor, Jerry Eriksson, for
+providing advice and guidance during my work on this thesis.
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
+Everyone else, you know who you are.
 
 \pagebreak
 

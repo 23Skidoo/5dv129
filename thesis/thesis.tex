@@ -106,14 +106,14 @@ way to solve this problem by redesigning GHC's Windows I/O subsystem to make use
 of the I/O completion ports API. The evaluation of this redesign shows it to be
 a strict improvement over the current state of affairs.
 
-The rest of this document is organised as follows: chapter~\ref{chap:background}
+The rest of this document is organised as follows: Chapter~\ref{chap:background}
 provides an overview of the background necessary for understanding the rest of
-the thesis; chapter~\ref{chap:old-io-manager} outlines the previous attempt at
-implementing a Windows I/O manager for GHC; chapter~\ref{chap:new-io-manager}
+the thesis; Chapter~\ref{chap:old-io-manager} outlines the previous attempt at
+implementing a Windows I/O manager for GHC; Chapter~\ref{chap:new-io-manager}
 contains a description of the proposed new design for the Windows I/O manager;
-chapter~\ref{chap:evaluation} presents an empirical evaluation of a proof of
-concept implementation of the new design; chapter~\ref{chap:related-work}
-discusses related work; and finally, chapter~\ref{chap:conclusions} contains
+Chapter~\ref{chap:evaluation} presents an empirical evaluation of a proof of
+concept implementation of the new design; Chapter~\ref{chap:related-work}
+discusses related work; and finally, Chapter~\ref{chap:conclusions} contains
 some final words and reflections about possible future directions.
 
 \chapter{Background}
@@ -162,7 +162,8 @@ not ``go wrong'' in more interesting ways. For example, functions with pure
 types are statically guaranteed to not have any side effects; for more advanced
 examples, see~\cite{bib:gibbons2003}. Type-correct Haskell programs are also
 widely perceived to not be wrong to begin with: when the code compiles, it often
-just works~\cite{bib:wiki-works}. Type inference removes the syntactic burden of
+just works~\footnote{See \url{https://wiki.haskell.org/Why_Haskell_just_works}
+  for more on this topic.}. Type inference removes the syntactic burden of
 manually written type annotations and, again, makes the code more concise.
 
 Ease of refactoring is probably the killer feature of Haskell. Static type
@@ -430,8 +431,6 @@ Haskell threads, the only difference is that they are created with the
 \chapter{Old Windows I/O Manager}
 \label{chap:old-io-manager}
 
-\textbf{TODO: better title for this chapter.}
-
 GHC on Windows currently lacks an I/O manager~\cite{bib:ticket7353}. All network
 I/O is performed using the safe foreign call mechanism described in the previous
 chapter. Besides the performance and scalability problems outlined above, this
@@ -451,7 +450,7 @@ the lack of resources) is that the approach chosen by the designers of the
 Windows API for doing scalable event-based I/O is quite different from the one
 used by Unix-like systems (Linux, FreeBSD, OS X/Darwin). As was shown in the
 previous chapter, on Unix a program utilising \texttt{epoll} or \texttt{kevent}
-registers a number of file descriptors with the OS and waits for them to become
+registers a number of file handles with the OS and waits for them to become
 available for reading or writing. However, with the I/O completion ports (or
 IOCP for short), as the Windows API is called, it is the other way around: the
 program starts all its I/O operations \textit{asynchronously}, and waits for
@@ -496,7 +495,7 @@ An I/O completion port is an abstract OS-level queue object similar to the
 \texttt{CreateIoCompletionPort} serves the same purpose as
 \texttt{epoll\_create} and \texttt{epoll\_ctl} do for \texttt{epoll}. It is used
 for both creating new I/O completion ports and associating existing ones with
-file descriptors.
+file handles.
 
 Asynchronous I/O operations are initiated by standard system functions like
 \texttt{ReadFile} and \texttt{WriteFile}. For this example the \texttt{WSASend}
@@ -517,13 +516,13 @@ asynchronous.
 
 The \texttt{GetQueuedCompletionStatus} function is IOCP's analogue of
 \texttt{epoll\_wait}. It blocks until some I/O operation initiated on one of the
-file descriptors associated with a given I/O completion port actually completes
+file handles associated with a given I/O completion port actually completes
 and returns some data about the completed operation. The \texttt{dwMilliseconds}
 argument allows to perform a non-blocking poll or block for a limited amount of
 time.
 
 Finally, the \texttt{CancelIo} function cancels all asynchronous I/O operations
-on the given file descriptor initiated by the calling OS thread.
+on the given file handle initiated by the calling OS thread.
 
 Additional information on the I/O completion ports API is available in
 Microsoft's official documentation online~\cite{bib:msdn}.
@@ -589,11 +588,11 @@ interface looks a bit differently:
 Here, the \texttt{Manager} type represents a reference to the internal I/O
 manager state structure that can be obtained via a call to the
 \texttt{getSystemManager} operation. The \texttt{associateHandle} operation
-simply associates a file descriptor with the I/O manager's I/O completion port
-(as explained in the previous section, that file descriptor must be properly set
+simply associates a file handle with the I/O manager's I/O completion port
+(as explained in the previous section, that file handle must be properly set
 up for doing asynchronous I/O).
 
-The \texttt{withOverlapped} operation takes a file descriptor, a callback for
+The \texttt{withOverlapped} operation takes a file handle, a callback for
 starting an asynchronous I/O operation, and a callback that should be called on
 completion. It allocates a new \texttt{OVERLAPPED} structure, invokes the start
 callback, creates a new empty MVar, registers the I/O operation with the I/O
@@ -607,9 +606,9 @@ calling thread. When a Haskell thread blocked in \texttt{withOverlapped}
 receives an asynchronous exception, it must cancel the unfinished I/O operation
 it has just initiated. As was shown in the previous section, the
 \texttt{CancelIo} function simply cancels all asynchronous I/O operations on a
-given file descriptor issued by the calling OS thread; this can be problematic
+given file handle issued by the calling OS thread; this can be problematic
 if two different Haskell threads have initiated I/O operations on the same file
-descriptor from the same OS thread, but only one of the Haskell threads needs to
+handle from the same OS thread, but only one of the Haskell threads needs to
 be canceled.
 
 Similarly, asynchronous I/O operations in Windows are also sensitive to the ID
@@ -621,14 +620,14 @@ purposes. An OS thread that has at some point initiated an asynchronous I/O
 operation can be simply shut down by the runtime at any moment.
 
 Therefore the unofficial Windows I/O manager enforces the following invariant:
-each file descriptor registered with the I/O manager has an associated pool of
+each file handle registered with the I/O manager has an associated pool of
 bound threads (see Section~\ref{sec:bound-threads}), and each bound thread in
 the pool can have at most one pending I/O operation per file
-descriptor. However, bound threads can be shared between pools associated with
-different file descriptors. Calls to \texttt{CancelIo} are always issued from
+handle. However, bound threads can be shared between pools associated with
+different file handles. Calls to \texttt{CancelIo} are always issued from
 the same bound thread (and therefore OS thread) that initiated the I/O
 operation. A bound thread that is a part of a pool associated with some file
-descriptor never exits until all pending I/O operations initiated from that
+handle never exits until all pending I/O operations initiated from that
 thread have completed.
 
 \section{Shortcomings of the old I/O Manager}
@@ -647,13 +646,11 @@ Another problem of the unofficial Windows I/O manager is that one has to add
 support for the \texttt{withOverlapped} interface to all standard Haskell I/O
 libraries in order to actually take advantage of it. This, unfortunately, is a
 fundamental limitation forced by using IOCP; but see
-chapter~\ref{chap:conclusions} for some discussion on this topic.
+Chapter~\ref{chap:conclusions} for some discussion on this topic.
 
 
 \chapter{New Windows I/O Manager}
 \label{chap:new-io-manager}
-
-\textbf{TODO: better title for this chapter.}
 
 As was shown in the previous chapter, the existing attempt at implementing a
 Windows I/O manager for GHC suffers from performance problems making it unusable
@@ -689,7 +686,8 @@ This function is not sensitive to the ID of the calling thread, and the optional
 operation previously initiated by some thread in the current process. Not
 supporting Windows versions earlier than Vista used to be a concern for some
 time, but it appears that starting with the GHC 8 release pre-Vista versions of
-Windows are no longer supported anyway~\cite{bib:ghc-wiki-windows-ghc}.
+Windows are no longer supported anyway~\footnote{See
+  \url{https://ghc.haskell.org/trac/ghc/wiki/WindowsGhc}.}.
 
 The second reason for having a bound thread pool scheme was that all
 asynchronous I/O initiated by a given OS thread is canceled when that thread
@@ -749,7 +747,7 @@ threads tried to update that hash table at the same time that caused contention
 and degraded performance. That problem was solved by an additional level of
 indirection: using a small fixed number ($2^5$) of mutex-protected hash tables
 instead of just one, plus a read-only hash table on top. To register a callback
-in this scenario the client first maps the file descriptor it is interested in
+in this scenario the client first maps the file handle it is interested in
 to one of the $2^5$ mutable hash tables using the top-level read-only one, and
 then modifies the appropriate mutable hash table. The I/O manager uses the same
 method to find out which callback to invoke.
@@ -805,13 +803,19 @@ evaluation. The new design is shown to be competitive with the status quo on
 Windows, and thus potentially appropriate for inclusion in GHC at some point in
 the future.
 
+\section{Proof of concept implementation}
+
+The proof of concept implementation includes\ldots
+
+\textbf{TODO: write}
+
 \section{Experimental setup}
 
 The benchmarks were run on a Windows machine with a 3.4 GHz four-core processor
 and 16 GiB of RAM. The same machine was used as both client and
 server. ApacheBench was used to test the network I/O performance. The numbers
 reported are an average over five runs for each value of the input
-parameter. Appendix~\ref{appendix:building} contains instructions for
+parameter. Appendix~\ref{appendix:source-code} contains instructions for
 replicating the experiment.
 
 \section{Benchmark 1: PongServer}
@@ -831,13 +835,13 @@ ApacheBench as a function of the number of connections (ApacheBench's
   \hline
   Connections & \texttt{pong} & \texttt{pong-baseline} \\
   \hline
-  10 & 10944 & 9781 \\
+  10 & 10738 & 10526 \\
   \hline
-  100 & 10694 & 8984 \\
+  100 & 10810 & 10191 \\
   \hline
-  1000 & 8761 & 8458 \\
+  1000 & 8290 & 8602 \\
   \hline
-  10000 & 3497 & 3795 \\
+  10000 & 4885 & 4726 \\
   \hline
 \end{tabular}
 \end{center}
@@ -845,10 +849,23 @@ ApacheBench as a function of the number of connections (ApacheBench's
 As can be seen above, code using the new I/O manager is competitive with code
 that uses the standard network library on this benchmark.
 
-\section{More benchmarks}
+\section{Benchmark 2: FileServer}
 
-\textbf{TODO: add more/better benchmarks. Add latency numbers. Add the remaining
-  benchmarks from the \cite{bib:o'sullivan} paper: file and timeouts.}
+\begin{center}
+\begin{tabular}{ | l | l | l | }
+  \hline
+  Connections & \texttt{file} & \texttt{file-baseline} \\
+  \hline
+  10 & 10289 & 9275 \\
+  \hline
+  100 & 10094 & 9142 \\
+  \hline
+  1000 & 8510 & 8163 \\
+  \hline
+  10000 & 4347 & 2844 \\
+  \hline
+\end{tabular}
+\end{center}
 
 
 \chapter{Related Work}
@@ -857,42 +874,21 @@ that uses the standard network library on this benchmark.
 \textbf{TODO: A review of literature with pointers to related papers and similar
   work done for systems other than GHC (for example, Go). }
 
-Lorem ipsum dolor sit amet, mazim facete sit ei, sonet melius euripidis pro
-an. Alii enim iudicabit mea et. Ex nonumy bonorum mel, aliquip sententiae cu
-vim, ferri suavitate signiferumque qui ei. Mei cu debet quaeque
-inciderint. Eleifend salutatus vix ad.
-
-Eos utamur consulatu at, id putant vocibus eum. Debitis tibique praesent cu
-vim. Et eam veri nostro, vis persius mnesarchum te. Nec no indoctum constituam
-cotidieque, ex facer mediocritatem eam.
-
-Errem legere assentior eu eam. Ei vel prima illum timeam, vim in assum
-signiferumque, pri ne invidunt contentiones voluptatibus. Id homero albucius
-cum, ius ad elitr partem, putent tincidunt cu ius. Iudico volutpat ne quo,
-omnium albucius indoctum mei te. Ne tation debitis vel.
-
-Vitae facete id vis, delenit sapientem mei ei, ea ius justo officiis
-periculis. Natum aliquam vim et, cu vix mollis animal atomorum. Usu ne qualisque
-urbanitas. Per ad vitae complectitur, cum ad solet lobortis deseruisse. Eum cu
-vero congue aliquam, te volutpat iudicabit vel, vel an utamur
-interpretaris. Agam referrentur usu ea. An qui impetus fierent perfecto, vis eu
-lorem semper euismod.
-
-Vis mundi phaedrum ut, scripta petentium at qui, te libris appetere laboramus
-eum. In liberavisse delicatissimi cum, nostrum philosophia ad pro, has elitr
-detraxit te. No tollit ignota inermis usu, te unum lucilius adipisci cum. Ea duo
-graeci molestie rationibus, possit forensibus at pro, ne phaedrum invenire
-delicata has.
-
 
 \chapter{Conclusions and Future Work}
 \label{chap:conclusions}
 
-A new design for the Windows I/O manager for GHC was presented, and its proof of
-concept implementation was shown to be an improvement over the status quo when
-it comes to correctness and competitive when it comes to performance. However, a
-number of issues still need to be resolved before the current implementation can
-be declared production-ready.
+A new design for the Windows I/O manager for GHC was presented. A proof of
+concept implementation of that design was shown to be an improvement over the
+status quo when it comes to correctness; it was also shown to be competitive
+when it comes to performance.
+
+\textbf{TODO: expand.}
+
+\section{Future Work}
+
+A number of issues still need to be resolved before the current implementation
+can be declared production-ready.
 
 First, support for the new Windows I/O manager must be integrated with the
 standard network library so that existing Haskell applications could take
@@ -906,7 +902,7 @@ functions instead of the CRT wrapper.
 
 Additionally, performance of the current implementation could be
 improved. Besides implementing the full design described in
-chapter~\ref{chap:new-io-manager}, there are also some low-hanging fruit like
+Chapter~\ref{chap:new-io-manager}, there are also some low-hanging fruit like
 using the more efficient \texttt{GetQueuedCompletionStatusEx} API instead of
 \texttt{GetQueuedCompletionStatus} and getting rid of \texttt{StablePtr}s in
 favour of \texttt{ForeignPtr}s. If the full design were to be implemented,
@@ -936,8 +932,8 @@ wholesale.
   (HOPL-III) San Diego, California, June 9-10, 2007.
 
 \bibitem[Marlow 2013]{bib:marlow2013}
-  \href{http://community.haskell.org/~simonmar/pcph/}{Parallel and Concurrent
-    Programming in Haskell}\\
+  \href{http://community.haskell.org/~simonmar/pcph/}{\emph{Parallel and Concurrent
+    Programming in Haskell}}\\
   \newblock Simon Marlow\\
   \newblock O'Reilly 2013, ISBN: 978-1449335946
 
@@ -946,15 +942,12 @@ wholesale.
   \newblock ed. by Jeremy Gibbons and Oege de Moor\\
   \newblock Palgrace MacMillan, 2003.
 
-\bibitem[Wiki]{bib:wiki-works} \emph{Why Haskell just works}\\
-  \newblock \url{https://wiki.haskell.org/Why_Haskell_just_works}\\
-  \newblock Haskell Wiki\\
-  \newblock URL accessed \today.
-
-\bibitem[GHC]{bib:ghc}
-  \emph{The Glasgow Haskell Compiler}\\
-  \newblock \url{https://www.haskell.org/ghc/}\\
-  \newblock URL accessed \today.
+\bibitem[GHC]{bib:ghc} \emph{The Glasgow Haskell Compiler: a technical
+    overview}\\
+  \newblock SL Peyton Jones, CV Hall, K Hammond, WD Partain, and PL Wadler\\
+  \newblock Proceedings of Joint Framework for Information Technology Technical
+  Conference, Keele, pp. 249-257.\\
+  \newblock March 1993.
 
 \bibitem[O'Sullivan 2010]{bib:o'sullivan}
   \href{http://research.google.com/pubs/pub36841.html}{\emph{Scalable I/O Event Handling for GHC}}\\
@@ -984,10 +977,6 @@ wholesale.
   \newblock \url{https://ghc.haskell.org/trac/ghc/ticket/7353}\\
   \newblock URL accessed \today.
 
-\bibitem[GHC Wiki]{bib:ghc-wiki-windows-ghc} \emph{Windows Support for GHC}\\
-  \newblock \url{https://ghc.haskell.org/trac/ghc/wiki/WindowsGhc}\\
-  \newblock URL accessed \today.
-
 \bibitem[MSDN]{bib:msdn} \emph{I/O Completion Ports}\\
   \newblock Microsoft Developer Network.\\
   \newblock
@@ -998,8 +987,8 @@ wholesale.
 
 \appendix
 
-\chapter{Building the source code}
-\label{appendix:building}
+\chapter{Accessing the source code}
+\label{appendix:source-code}
 
 Source code for the proof of concept implementation described in this thesis is
 available on GitHub at \url{https://github.com/23Skidoo/haskell-iocp/}. Building
@@ -1033,5 +1022,8 @@ programs. To run the test programs, use \texttt{cabal run}. For example,
 \texttt{httpperf} for performance tests. Example invocation of ApacheBench:
 \texttt{ab -n 10000 -c 100 http://127.0.0.1:8080/}. This makes ApacheBench send
 ten thousand requests using one hundred simultaneous connections.
+
+Windows x64 binaries for the \texttt{pong} and \texttt{file} benchmarks are also
+available from \url{https://github.com/23Skidoo/haskell-iocp/releases/tag/0.1}.
 
 \end{document}

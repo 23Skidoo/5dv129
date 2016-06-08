@@ -112,9 +112,9 @@ the thesis; Chapter~\ref{chap:old-io-manager} outlines the previous attempt at
 implementing a Windows I/O manager for GHC; Chapter~\ref{chap:new-io-manager}
 contains a description of the proposed new design for the Windows I/O manager;
 Chapter~\ref{chap:evaluation} presents an empirical evaluation of a proof of
-concept implementation of the new design; Chapter~\ref{chap:related-work}
-discusses related work; and finally, Chapter~\ref{chap:conclusions} contains
-some final words and reflections about possible future directions.
+concept implementation of the new design; and finally,
+Chapter~\ref{chap:conclusions} contains some final words and reflections about
+possible future directions.
 
 \chapter{Background}
 \label{chap:background}
@@ -162,7 +162,7 @@ not ``go wrong'' in more interesting ways. For example, functions with pure
 types are statically guaranteed to not have any side effects; for more advanced
 examples, see~\cite{bib:gibbons2003}. Type-correct Haskell programs are also
 widely perceived to not be wrong to begin with: when the code compiles, it often
-just works~\footnote{See \url{https://wiki.haskell.org/Why_Haskell_just_works}
+just works\footnote{See \url{https://wiki.haskell.org/Why_Haskell_just_works}
   for more on this topic.}. Type inference removes the syntactic burden of
 manually written type annotations and, again, makes the code more concise.
 
@@ -661,6 +661,7 @@ the~\cite{bib:voellmy} paper. A partial proof of concept implementation of this
 design is the focus of the next chapter.
 
 \section{Removing bound thread pools}
+\label{sec:bound-thread-pools}
 
 As was explained in Section~\ref{sec:shortcomings-old-io-manager}, the main
 problem with the old Windows I/O manager is the overhead of maintaining multiple
@@ -686,7 +687,7 @@ This function is not sensitive to the ID of the calling thread, and the optional
 operation previously initiated by some thread in the current process. Not
 supporting Windows versions earlier than Vista used to be a concern for some
 time, but it appears that starting with the GHC 8 release pre-Vista versions of
-Windows are no longer supported anyway~\footnote{See
+Windows are no longer supported anyway\footnote{See
   \url{https://ghc.haskell.org/trac/ghc/wiki/WindowsGhc}.}.
 
 The second reason for having a bound thread pool scheme was that all
@@ -757,6 +758,7 @@ modest modification to its internal state structures and the code of
 \texttt{withOverlapped}.
 
 \section{Multiple I/O manager threads}
+\label{sec:multiple-threads}
 
 As discussed in the~\cite{bib:voellmy} paper, a single I/O manager thread in a
 highly concurrent server application simply cannot saturate all HECs with work
@@ -772,6 +774,7 @@ utilisation (by distributing the I/O manager load more evenly across cores) and
 locality (by minimising the need for cross-HEC communication).
 
 \section{Avoiding the overhead of blocking calls}
+\label{sec:avoiding-overhead}
 
 Another optimisation discussed in the~\cite{bib:voellmy} paper is avoiding
 expensive safe foreign calls in the event loop by using a couple of initial fast
@@ -805,35 +808,45 @@ the future.
 
 \section{Proof of concept implementation}
 
-The proof of concept implementation includes\ldots
-
-\textbf{TODO: write}
+The proof of concept implementation includes most of the design elements
+described in Chapter~\ref{chap:new-io-manager}, except multiple I/O manager
+threads (Section~\ref{sec:multiple-threads}) and non-blocking event polling
+(Section~\ref{sec:avoiding-overhead}). Additionally, instead of implementing the
+full reference counting scheme as described in
+Section~\ref{sec:bound-thread-pools}, the proof of concept implementation just
+sets the maximum spare worker limit to a high number (500); this shouldn't
+affect the results as the number of spare worker threads created is expected to
+be small. See Appendix~\ref{appendix:source-code} for instructions on how to
+access the source code of the proof of concept implementation.
 
 \section{Experimental setup}
 
-The benchmarks were run on a Windows machine with a 3.4 GHz four-core processor
-and 16 GiB of RAM. The same machine was used as both client and
-server. ApacheBench was used to test the network I/O performance. The numbers
-reported are an average over five runs for each value of the input
-parameter. Appendix~\ref{appendix:source-code} contains instructions for
-replicating the experiment.
+The benchmarks were run on a Windows 10/Ubuntu Linux 16.04 machine with a 3.4
+GHz four-core Intel Core i5 4670K processor and 16 GiB of RAM. The same machine
+was used as both client and
+server. ApacheBench\footnote{\url{https://httpd.apache.org/docs/2.4/programs/ab.html}}
+was used to test the network I/O performance. Each test run performed 50
+thousand requests total (ApacheBench's \texttt{-n} parameter) with a varying
+number of concurrent connections (ApacheBench's \texttt{-c}
+option). Appendix~\ref{appendix:source-code} contains more detailed instructions
+for replicating the experiment.
 
-\section{Benchmark 1: PongServer}
+\section{Benchmark 1: Pong Server}
 
-The PongServer benchmark implements a simple HTTP server that sends a response
+The Pong benchmark implements a simple HTTP server that sends a response
 with a constant five-byte body (``Pong!'') in answer to any HTTP request. The
 \texttt{pong} version of the server is implemented using the new I/O manager
 prototype, and the \texttt{pong-baseline} version is implemented using the
 standard Haskell network library.
 
-The following table shows the number of requests per second as reported by
-ApacheBench as a function of the number of connections (ApacheBench's
-\texttt{-c} option):
+Table~\ref{tbl:pong} shows the number of requests per second as reported by
+ApacheBench as a function of the number of concurrent connections.
 
-\begin{center}
+\begin{table}[h!]
+\centering
 \begin{tabular}{ | l | l | l | }
   \hline
-  Connections & \texttt{pong} & \texttt{pong-baseline} \\
+  Conc. Connections & \texttt{pong} & \texttt{pong-baseline} \\
   \hline
   10 & 10738 & 10526 \\
   \hline
@@ -844,17 +857,52 @@ ApacheBench as a function of the number of connections (ApacheBench's
   10000 & 4885 & 4726 \\
   \hline
 \end{tabular}
-\end{center}
+\caption{Number of requests per second against concurrent connections. Higher is better.}
+\label{tbl:pong}
+\end{table}
 
-As can be seen above, code using the new I/O manager is competitive with code
-that uses the standard network library on this benchmark.
+As can be seen from Table~\ref{tbl:pong}, code using the new I/O manager is
+competitive with code that uses the standard network library on this benchmark.
 
-\section{Benchmark 2: FileServer}
-
-\begin{center}
+\begin{table}[h!]
+\centering
 \begin{tabular}{ | l | l | l | }
   \hline
-  Connections & \texttt{file} & \texttt{file-baseline} \\
+  Conc. Connections & Requests per second & Latency, ms \\
+  \hline
+  10 & 42369 & 0.23 \\
+  \hline
+  100 & 39756 & 2.5 \\
+  \hline
+  1000 & 35282 & 28.3 \\
+  \hline
+\end{tabular}
+\caption{Requests per second and latency (ms) against concurrent connections on
+  Linux. For RPS, higher is better; for latency, lower is better.}
+\label{tbl:pong-linux}
+\end{table}
+
+For comparison, table~\ref{tbl:pong-linux} shows the results of the same
+experiment performed on Linux, also including the latency numbers. As can be
+seen from this table, performance of the Windows implementations still has room
+for improvement.
+
+\section{Benchmark 2: File Server}
+
+The File Server benchmark is a simple HTTP server that reads and serves a small
+static file from disk in response to any HTTP request. The \texttt{file} version
+of the server is the one implemented using the new I/O manager prototype and
+asynchronous file I/O, and the \texttt{file-baseline} version is implemented
+using the standard network library and synchronous file I/O.
+
+Table~\ref{tbl:file} shows the number of requests per second measured with
+ApacheBench on Windows as a function of the number of concurrent connections.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{ | l | l | l | }
+  \hline
+  Conc. Connections & \texttt{file} & \texttt{file-baseline} \\
   \hline
   10 & 10289 & 9275 \\
   \hline
@@ -865,25 +913,56 @@ that uses the standard network library on this benchmark.
   10000 & 4347 & 2844 \\
   \hline
 \end{tabular}
-\end{center}
+\caption{Requests per second against concurrent connections. Higher is better.}
+\label{tbl:file}
+\end{table}
 
+As can be seen from Table~\ref{tbl:file}, the new I/O manager is competitive
+with the old one on this benchmark as well, overall being slightly faster.
 
-\chapter{Related Work}
-\label{chap:related-work}
+\section{Latency}
 
-\textbf{TODO: A review of literature with pointers to related papers and similar
-  work done for systems other than GHC (for example, Go). }
+Finally, Table~\ref{tbl:latency} shows the latency numbers (average time per
+request) for both Pong and the File Server benchmarks on Windows.
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{ | l | l | l | l | l | }
+\hline
+Conc. Connections &  \texttt{pong}  & \texttt{pong-baseline} & \texttt{file} &
+\texttt{file-baseline} \\
+\hline
+10 &     0.925 &   0.922 &         0.953 & 1.0\\
+\hline
+100 &     9 &      9.5 &           9.6 &   10.6\\
+\hline
+1000 &    115 &    114 &          115  & 128.7\\
+\hline
+10000 &  2062 &   2225 &         2206  & 3318\\
+\hline
+\end{tabular}
+\caption{Latency (ms) against concurrent connections. Lower is better. }
+\label{tbl:latency}
+\end{table}
+
+As can be seen from these results, the new implementation is competitive with
+the old one even when it comes to latency.
+
+% \chapter{Related Work}
+% \label{chap:related-work}
+
+% \textbf{TODO: A review of literature with pointers to related papers and similar
+%   work done for systems other than GHC (for example, Go). }
 
 
 \chapter{Conclusions and Future Work}
 \label{chap:conclusions}
 
-A new design for the Windows I/O manager for GHC was presented. A proof of
-concept implementation of that design was shown to be an improvement over the
-status quo when it comes to correctness; it was also shown to be competitive
-when it comes to performance.
+A new design for the Windows I/O manager for GHC was presented.
 
-\textbf{TODO: expand.}
+A proof of concept implementation of that design was shown to be an improvement
+over the status quo when it comes to correctness; it was also shown to be
+competitive when it comes to performance.
 
 \section{Future Work}
 

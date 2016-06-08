@@ -43,8 +43,7 @@ correctness problems.
 A redesign of GHC's Windows I/O subsystem is proposed, making use of the Windows
 I/O completion ports API. A proof of concept implementation of the design is
 evaluated and found to be a strict improvement over the current state of
-affairs. The improvements are transparently available to existing Haskell
-applications.
+affairs.
 
 \pagebreak
 
@@ -52,13 +51,13 @@ applications.
 
 This thesis builds upon the work performed by many different people over the
 years. Johan Tibell and Bryan O'Sullivan implemented the initial version of the
-GHC I/O manager for Unix. Andreas Voellmy and coauthors optimised and improved
-the design of the I/O manager in many respects. Felix Martini wrote the
-\texttt{winio} package for working with Windows asynchronous I/O in
-Haskell. Joseph Adams is the author of the first version of Windows I/O manager.
+GHC I/O manager for Unix. Andreas Voellmy and coauthors further optimised and
+improved the Unix I/O manager in many ways. Felix Martini wrote the
+\texttt{winio} Haskell package for working with Windows asynchronous I/O. Joseph
+Adams is the author of the first version of Windows I/O manager.
 
-I'd also like to express my gratitude to my thesis advisor, Jerry Eriksson, for
-providing advice and guidance during my work on this thesis.
+I'd also like to express gratitude to my advisor, Jerry Eriksson, for providing
+advice and guidance during my work on this thesis.
 
 Everyone else, you know who you are.
 
@@ -112,9 +111,9 @@ the thesis; Chapter~\ref{chap:old-io-manager} outlines the previous attempt at
 implementing a Windows I/O manager for GHC; Chapter~\ref{chap:new-io-manager}
 contains a description of the proposed new design for the Windows I/O manager;
 Chapter~\ref{chap:evaluation} presents an empirical evaluation of a proof of
-concept implementation of the new design; and finally,
-Chapter~\ref{chap:conclusions} contains some final words and reflections about
-possible future directions.
+concept implementation of the new design; Chapter~\ref{chap:future-work}
+reflects on possible future directions; and finally,
+Chapter~\ref{chap:conclusions} contains some concluding words.
 
 \chapter{Background}
 \label{chap:background}
@@ -728,18 +727,39 @@ counts of Tasks with pending I/O operations:
         [...]
 \end{verbatim}
 
-As discussed in the next chapter, these two optimisations, when implemented,
-actually do make the Windows I/O manager competitive with the standard Haskell
-network library.
+\section{Removing stable pointers}
+
+Old Windows I/O manager associated a stable pointer with each registered
+completion callback. A stable pointer is reference to a Haskell object that is
+not affected by garbage collection and so can be used to refer to objects on
+Haskell heap from C. That stable pointer was then saved adjacent to the
+\texttt{OVERLAPPED} structure and then passed back to the Haskell code by the C
+wrapper for \texttt{GetQueuedCompletionStatus}.
+
+The implementation of stable pointers in GHC RTS is not very scalable since it
+uses a global lock internally. The new design removes stable pointers completely
+and manages completion callbacks using a Haskell-side hash table indexed by
+pointers to \texttt{OVERLAPPED} structures.
+
+
+\section{Dequeuing multiple completions at once}
+
+The
+\texttt{GetQueuedCompletionStatusEx}\footnote{\url{https://msdn.microsoft.com/en-us/library/windows/desktop/aa364988\%28v=vs.85\%29.aspx}}
+Windows API function allows to dequeue multiple completions from an I/O
+completion port with a single foreign call. Using it instead of
+\texttt{GetQueuedCompletionStatus} improves the performance in the case where
+the application needs to handle large volume of completions. It is supported
+since Windows Vista.
 
 \section{Scalable registrations}
 
 The remaining features of the new Windows I/O manager design are aimed at
 improving its performance and scalability beyond the current status quo on
-Windows. The implementation status of these optimisations at the time of writing
-is still work in progress. However, it is nevertheless instructive to briefly
-discuss them here. These optimisations are based on the pioneering work in
-the~\cite{bib:voellmy} paper.
+Windows. They are based on the pioneering work in the~\cite{bib:voellmy} paper.
+Not all of these optimisations are currently implemented (see
+Section~\ref{sec:proof-of-concept} for a review of the implementation
+status). However, it is nevertheless instructive to briefly discuss them here.
 
 The first bottleneck identified in the~\cite{bib:voellmy} paper is the callback
 registration mechanism used by the I/O manager. In the original implementation
@@ -753,8 +773,8 @@ to one of the $2^5$ mutable hash tables using the top-level read-only one, and
 then modifies the appropriate mutable hash table. The I/O manager uses the same
 method to find out which callback to invoke.
 
-This technique should be directly applicable for the Windows I/O manager with a
-modest modification to its internal state structures and the code of
+This technique was found to be directly applicable for the Windows I/O manager
+with a modest modification to its internal state structures and the code of
 \texttt{withOverlapped}.
 
 \section{Multiple I/O manager threads}
@@ -807,6 +827,7 @@ Windows, and thus potentially appropriate for inclusion in GHC at some point in
 the future.
 
 \section{Proof of concept implementation}
+\label{sec:proof-of-concept}
 
 The proof of concept implementation includes most of the design elements
 described in Chapter~\ref{chap:new-io-manager}, except multiple I/O manager
@@ -868,7 +889,7 @@ competitive with code that uses the standard network library on this benchmark.
 \centering
 \begin{tabular}{ | l | l | l | }
   \hline
-  Conc. Connections & Requests per second & Latency, ms \\
+  Conc. Connections & Requests per second & Time per request, ms \\
   \hline
   10 & 42369 & 0.23 \\
   \hline
@@ -948,26 +969,13 @@ Conc. Connections &  \texttt{pong}  & \texttt{pong-baseline} & \texttt{file} &
 As can be seen from these results, the new implementation is competitive with
 the old one even when it comes to latency.
 
-% \chapter{Related Work}
-% \label{chap:related-work}
+\chapter{Future Work}
+\label{chap:future-work}
 
-% \textbf{TODO: A review of literature with pointers to related papers and similar
-%   work done for systems other than GHC (for example, Go). }
-
-
-\chapter{Conclusions and Future Work}
-\label{chap:conclusions}
-
-A new design for the Windows I/O manager for GHC was presented.
-
-A proof of concept implementation of that design was shown to be an improvement
-over the status quo when it comes to correctness; it was also shown to be
-competitive when it comes to performance.
-
-\section{Future Work}
-
-A number of issues still need to be resolved before the current implementation
-can be declared production-ready.
+The prototype Windows I/O manager implementation was shown above to be
+competitive with current status quo in GHC. However, a number of issues still
+need to be resolved before the new implementation can be declared
+production-ready.
 
 First, support for the new Windows I/O manager must be integrated with the
 standard network library so that existing Haskell applications could take
@@ -979,14 +987,16 @@ I/O in addition to network I/O. This will likely require extensive changes to
 the GHC runtime support library to make it use native Windows API types and
 functions instead of the CRT wrapper.
 
-Additionally, performance of the current implementation could be
-improved. Besides implementing the full design described in
-Chapter~\ref{chap:new-io-manager}, there are also some low-hanging fruit like
-using the more efficient \texttt{GetQueuedCompletionStatusEx} API instead of
-\texttt{GetQueuedCompletionStatus} and getting rid of \texttt{StablePtr}s in
-favour of \texttt{ForeignPtr}s. If the full design were to be implemented,
-testing its performance would require a more advanced setup akin to the one
-described in~\cite{bib:voellmy} to saturate the network.
+Additionally, performance of the current implementation could be improved. As
+discussed in Chapter~\ref{chap:evaluation}, there are two elements of the design
+not yet implemented in the current prototype: per-core event manager threads and
+non-blocking event polling that are expected to seriously boost the
+performance. The implementation could be also profiled with
+e.g. ThreadScope\footnote{\url{https://wiki.haskell.org/ThreadScope}.} to weed
+out the possible remaining bottlenecks. If the full design were to be
+implemented, testing its performance would require a more advanced setup akin to
+the one described in~\cite{bib:voellmy} to saturate the network; Amazon EC2 can
+probably be used for that purpose.
 
 Finally, it'd be nice to share more code among the Windows and Unix I/O manager
 implementations.  It should be possible to come up with an API that combines
@@ -994,6 +1004,36 @@ implementations.  It should be possible to come up with an API that combines
 by implementing an IOCP-style interface on top of
 \texttt{epoll}/\texttt{kqueue}. The timeout manager code can probably be reused
 wholesale.
+
+% \chapter{Related Work}
+% \label{chap:related-work}
+
+% \textbf{TODO: A review of literature with pointers to related papers and similar
+%   work done for systems other than GHC (for example, Go). }
+
+
+\chapter{Conclusions}
+\label{chap:conclusions}
+
+The existing attempt at implementing a Windows I/O manager for GHC was evaluated
+and found to be inadequate from the performance point of view. A new design for
+the Windows I/O manager for GHC was developed, taking advantage of the improved
+asynchronous I/O API available since Windows Vista and various optimisations
+developed in the~\cite{bib:voellmy} paper.
+
+A prototype implementation of the new design was evaluated using a number of
+benchmarks and was found to be an improvement over the status quo. At this
+stage, the main advantage of the new implementation is improved correctness
+(proper handling of asynchronous exceptions); when it comes to performance, the
+new implementation is usually competitive with the old one and often slightly
+faster.
+
+The proposed design was therefore shown to be viable in practice; with more
+effort, it should be possible to optimise the prototype implementation further
+and make it more complete with respect to functionality. Once the new Windows
+I/O manager is included in GHC, the improvements will be transparently available
+to existing Haskell applications.
+
 
 \addcontentsline{toc}{chapter}{\bibname}
 \begin{thebibliography}{9}
